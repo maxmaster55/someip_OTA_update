@@ -1,0 +1,8 @@
+{
+    "manager.updater.Updater" : {
+        "service_id": 6942,
+        "instances" : {
+            "manager.updater.Updater": 22138
+        }
+    }
+}

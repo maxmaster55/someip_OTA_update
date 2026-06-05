@@ -1,0 +1,52 @@
+import "platform:/plugin/org.genivi.commonapi.someip/deployment/CommonAPI-SOMEIP_deployment_spec.fdepl"
+import "../fidl/updater.fidl"
+
+define org.genivi.commonapi.someip.deployment for interface manager.updater.Updater {
+    SomeIpServiceID = 6942 
+    
+    broadcast notifyUpdateAvailable {
+        SomeIpEventID = 38006
+        SomeIpEventGroups = { 7002 }
+        SomeIpReliable = false
+    }
+
+    broadcast notifyChunk {
+        SomeIpEventID = 38007
+        SomeIpEventGroups = { 7002 }
+        SomeIpReliable = false
+    }
+
+    
+
+    method getUpdateInfo {
+        SomeIpMethodID = 3
+        SomeIpReliable = false
+    }  
+
+    method sendDownloadStatus {
+        SomeIpMethodID = 4
+        SomeIpReliable = false
+    }  
+
+    method sendInstallationStatus {
+        SomeIpMethodID = 5
+        SomeIpReliable = false
+    }  
+
+    method startUpdate {
+        SomeIpMethodID = 6
+        SomeIpReliable = false
+    }  
+}
+
+define org.genivi.commonapi.someip.deployment for provider as Service {
+    instance manager.updater.Updater {
+        InstanceId = "manager.updater.Updater"
+
+        SomeIpInstanceID = 22138
+
+        SomeIpUnicastAddress = "127.0.0.1" // changes based on the ip of ecu running service
+        SomeIpReliableUnicastPort = 30499
+        SomeIpUnreliableUnicastPort = 30500
+    }
+}

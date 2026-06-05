@@ -1,10 +1,7 @@
 cmake_minimum_required(VERSION 3.10.0)
 project(Update_Manager VERSION 0.1.0 LANGUAGES C CXX)
 
-include_directories(
-    inc
-    ${CMAKE_CURRENT_SOURCE_DIR}/gen/src-gen
-)
+
 
 find_package(CommonAPI REQUIRED)
 find_package(CommonAPI-SomeIP REQUIRED)
@@ -19,11 +16,16 @@ set(GENERATED_SOURCES
 
 add_executable(Update_Manager 
     src/main.cpp
-    src/update_manager.cc
+    src/updater_impl.cc
     ${GENERATED_SOURCES}
 )
 
-target_link_libraries(${PROJECT_NAME}
+target_include_directories(Update_Manager PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/gen/src-gen
+    inc
+)
+
+target_link_libraries(Update_Manager
     vsomeip3
     vsomeip3-cfg
     vsomeip3-e2e

@@ -1,11 +1,12 @@
 #pragma once
 
 #include <v1/manager/updater/UpdaterStubDefault.hpp>
-
+#include <memory>
+#include "file_manager.hpp"
 
 class updaterImpl : public v1::manager::updater::UpdaterStubDefault {
 public:
-    updaterImpl() = default;
+    updaterImpl();
     ~updaterImpl() = default;
 
     void getUpdateInfo(const std::shared_ptr<CommonAPI::ClientId> _client, getUpdateInfoReply_t _reply) override;
@@ -33,6 +34,13 @@ public:
         uint32_t _chunkIndex, 
         requestDataReply_t _reply
     ) override;
+
+    // Load update file for OTA delivery
+    bool loadUpdateFile(const std::string& filename) {
+        return updateManager_->loadUpdateFile(filename);
+    }
+
 private:
-    
+    std::shared_ptr<UpdateManager> updateManager_;
+    static constexpr uint32_t CHUNK_SIZE = 4096;
 };

@@ -8,6 +8,7 @@ void updaterImpl::getUpdateInfo(const std::shared_ptr<CommonAPI::ClientId> _clie
 
 void updaterImpl::sendDownloadStatus(
     const std::shared_ptr<CommonAPI::ClientId> _client, 
+    uint32_t _versionId,
     bool _success, 
     bool _retry, 
     std::string _message, 
@@ -19,6 +20,7 @@ void updaterImpl::sendDownloadStatus(
 
 void updaterImpl::sendInstallationStatus(
     const std::shared_ptr<CommonAPI::ClientId> _client, 
+    uint32_t _versionId,
     bool _success, 
     std::string _message, 
     sendInstallationStatusReply_t _reply
@@ -27,7 +29,12 @@ void updaterImpl::sendInstallationStatus(
 
 }
 
-void updaterImpl::startUpdate(const std::shared_ptr<CommonAPI::ClientId> _client, startUpdateReply_t _reply) 
+void updaterImpl::requestData(
+    const std::shared_ptr<CommonAPI::ClientId> _client, 
+    uint32_t _versionId, 
+    uint32_t _chunkIndex, 
+    requestDataReply_t _reply
+) 
 {
 
 }

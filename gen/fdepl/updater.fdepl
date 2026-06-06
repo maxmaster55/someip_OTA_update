@@ -9,13 +9,6 @@ define org.genivi.commonapi.someip.deployment for interface manager.updater.Upda
         SomeIpEventGroups = { 7002 }
         SomeIpReliable = false
     }
-
-    broadcast notifyChunk {
-        SomeIpEventID = 38007
-        SomeIpEventGroups = { 7002 }
-        SomeIpReliable = false
-    }
-
     
 
     method getUpdateInfo {
@@ -33,7 +26,7 @@ define org.genivi.commonapi.someip.deployment for interface manager.updater.Upda
         SomeIpReliable = false
     }  
 
-    method startUpdate {
+    method requestData {
         SomeIpMethodID = 6
         SomeIpReliable = false
     }  

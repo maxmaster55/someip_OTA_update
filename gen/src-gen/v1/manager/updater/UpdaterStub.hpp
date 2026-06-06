@@ -52,12 +52,7 @@ class UpdaterStubAdapter
     * Sends a broadcast event for notifyUpdateAvailable. Should not be called directly.
     * Instead, the "fire<broadcastName>Event" methods of the stub should be used.
     */
-    virtual void fireNotifyUpdateAvailableEvent(const int32_t &_version_major, const int32_t &_version_minor) = 0;
-    /**
-    * Sends a broadcast event for notifyChunk. Should not be called directly.
-    * Instead, the "fire<broadcastName>Event" methods of the stub should be used.
-    */
-    virtual void fireNotifyChunkEvent(const int32_t &_chunk_index, const int32_t &_total_chunks, const CommonAPI::ByteBuffer &_data, const bool &_is_last) = 0;
+    virtual void fireNotifyUpdateAvailableEvent(const uint32_t &_versionId) = 0;
 
 
     virtual void deactivateManagedInstances() = 0;
@@ -100,38 +95,32 @@ class UpdaterStub
     : public virtual CommonAPI::Stub<UpdaterStubAdapter, UpdaterStubRemoteEvent>
 {
 public:
-    typedef std::function<void (int64_t _size, std::string _md5_hash, bool _is_compressed)> getUpdateInfoReply_t;
+    typedef std::function<void (uint32_t _versionId, int64_t _size, std::string _md5_hash, bool _is_compressed)> getUpdateInfoReply_t;
     typedef std::function<void ()> sendDownloadStatusReply_t;
     typedef std::function<void ()> sendInstallationStatusReply_t;
-    typedef std::function<void ()> startUpdateReply_t;
+    typedef std::function<void (uint32_t _chunkIndex_, std::string _data, bool _lastChunk)> requestDataReply_t;
 
     virtual ~UpdaterStub() {}
     void lockInterfaceVersionAttribute(bool _lockAccess) { static_cast<void>(_lockAccess); }
     bool hasElement(const uint32_t _id) const {
-        return (_id < 6);
+        return (_id < 5);
     }
     virtual const CommonAPI::Version& getInterfaceVersion(std::shared_ptr<CommonAPI::ClientId> _client) = 0;
 
     /// Sends a broadcast event for notifyUpdateAvailable.
-    virtual void fireNotifyUpdateAvailableEvent(const int32_t &_version_major, const int32_t &_version_minor) {
+    virtual void fireNotifyUpdateAvailableEvent(const uint32_t &_versionId) {
         auto stubAdapter = CommonAPI::Stub<UpdaterStubAdapter, UpdaterStubRemoteEvent>::stubAdapter_.lock();
         if (stubAdapter)
-            stubAdapter->fireNotifyUpdateAvailableEvent(_version_major, _version_minor);
+            stubAdapter->fireNotifyUpdateAvailableEvent(_versionId);
     }
     /// This is the method that will be called on remote calls on the method getUpdateInfo.
     virtual void getUpdateInfo(const std::shared_ptr<CommonAPI::ClientId> _client, getUpdateInfoReply_t _reply) = 0;
     /// This is the method that will be called on remote calls on the method sendDownloadStatus.
-    virtual void sendDownloadStatus(const std::shared_ptr<CommonAPI::ClientId> _client, bool _success, bool _retry, std::string _message, sendDownloadStatusReply_t _reply) = 0;
+    virtual void sendDownloadStatus(const std::shared_ptr<CommonAPI::ClientId> _client, uint32_t _versionId, bool _success, bool _retry, std::string _message, sendDownloadStatusReply_t _reply) = 0;
     /// This is the method that will be called on remote calls on the method sendInstallationStatus.
-    virtual void sendInstallationStatus(const std::shared_ptr<CommonAPI::ClientId> _client, bool _success, std::string _message, sendInstallationStatusReply_t _reply) = 0;
-    /// This is the method that will be called on remote calls on the method startUpdate.
-    virtual void startUpdate(const std::shared_ptr<CommonAPI::ClientId> _client, startUpdateReply_t _reply) = 0;
-    /// Sends a broadcast event for notifyChunk.
-    virtual void fireNotifyChunkEvent(const int32_t &_chunk_index, const int32_t &_total_chunks, const CommonAPI::ByteBuffer &_data, const bool &_is_last) {
-        auto stubAdapter = CommonAPI::Stub<UpdaterStubAdapter, UpdaterStubRemoteEvent>::stubAdapter_.lock();
-        if (stubAdapter)
-            stubAdapter->fireNotifyChunkEvent(_chunk_index, _total_chunks, _data, _is_last);
-    }
+    virtual void sendInstallationStatus(const std::shared_ptr<CommonAPI::ClientId> _client, uint32_t _versionId, bool _success, std::string _message, sendInstallationStatusReply_t _reply) = 0;
+    /// This is the method that will be called on remote calls on the method requestData.
+    virtual void requestData(const std::shared_ptr<CommonAPI::ClientId> _client, uint32_t _versionId, uint32_t _chunkIndex, requestDataReply_t _reply) = 0;
 
 
     using CommonAPI::Stub<UpdaterStubAdapter, UpdaterStubRemoteEvent>::initStubAdapter;

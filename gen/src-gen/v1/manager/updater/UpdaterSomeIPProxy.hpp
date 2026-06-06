@@ -11,7 +11,6 @@
 #define V1_MANAGER_UPDATER_UPDATER_SOMEIP_PROXY_HPP_
 
 #include <v1/manager/updater/UpdaterProxyBase.hpp>
-#include <v1/manager/updater/UpdaterSomeIPDeployment.hpp>
 
 #if !defined (COMMONAPI_INTERNAL_COMPILATION)
 #define COMMONAPI_INTERNAL_COMPILATION
@@ -58,31 +57,28 @@ public:
 
     virtual NotifyUpdateAvailableEvent& getNotifyUpdateAvailableEvent();
 
-    virtual NotifyChunkEvent& getNotifyChunkEvent();
-
-    virtual void getUpdateInfo(CommonAPI::CallStatus &_internalCallStatus, int64_t &_size, std::string &_md5_hash, bool &_is_compressed, const CommonAPI::CallInfo *_info);
+    virtual void getUpdateInfo(CommonAPI::CallStatus &_internalCallStatus, uint32_t &_versionId, int64_t &_size, std::string &_md5_hash, bool &_is_compressed, const CommonAPI::CallInfo *_info);
 
     virtual std::future<CommonAPI::CallStatus> getUpdateInfoAsync(GetUpdateInfoAsyncCallback _callback, const CommonAPI::CallInfo *_info);
 
-    virtual void sendDownloadStatus(bool _success, bool _retry, std::string _message, CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info);
+    virtual void sendDownloadStatus(uint32_t _versionId, bool _success, bool _retry, std::string _message, CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info);
 
-    virtual std::future<CommonAPI::CallStatus> sendDownloadStatusAsync(const bool &_success, const bool &_retry, const std::string &_message, SendDownloadStatusAsyncCallback _callback, const CommonAPI::CallInfo *_info);
+    virtual std::future<CommonAPI::CallStatus> sendDownloadStatusAsync(const uint32_t &_versionId, const bool &_success, const bool &_retry, const std::string &_message, SendDownloadStatusAsyncCallback _callback, const CommonAPI::CallInfo *_info);
 
-    virtual void sendInstallationStatus(bool _success, std::string _message, CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info);
+    virtual void sendInstallationStatus(uint32_t _versionId, bool _success, std::string _message, CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info);
 
-    virtual std::future<CommonAPI::CallStatus> sendInstallationStatusAsync(const bool &_success, const std::string &_message, SendInstallationStatusAsyncCallback _callback, const CommonAPI::CallInfo *_info);
+    virtual std::future<CommonAPI::CallStatus> sendInstallationStatusAsync(const uint32_t &_versionId, const bool &_success, const std::string &_message, SendInstallationStatusAsyncCallback _callback, const CommonAPI::CallInfo *_info);
 
-    virtual void startUpdate(CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info);
+    virtual void requestData(uint32_t _versionId, uint32_t _chunkIndex, CommonAPI::CallStatus &_internalCallStatus, uint32_t &_chunkIndex_, std::string &_data, bool &_lastChunk, const CommonAPI::CallInfo *_info);
 
-    virtual std::future<CommonAPI::CallStatus> startUpdateAsync(StartUpdateAsyncCallback _callback, const CommonAPI::CallInfo *_info);
+    virtual std::future<CommonAPI::CallStatus> requestDataAsync(const uint32_t &_versionId, const uint32_t &_chunkIndex, RequestDataAsyncCallback _callback, const CommonAPI::CallInfo *_info);
 
     virtual void getOwnVersion(uint16_t &_major, uint16_t &_minor) const;
 
     virtual std::future<void> getCompletionFuture();
 
 private:
-    CommonAPI::SomeIP::Event<NotifyUpdateAvailableEvent, CommonAPI::Deployable< int32_t, CommonAPI::SomeIP::IntegerDeployment<int32_t> >, CommonAPI::Deployable< int32_t, CommonAPI::SomeIP::IntegerDeployment<int32_t> >> notifyUpdateAvailable_;
-    CommonAPI::SomeIP::Event<NotifyChunkEvent, CommonAPI::Deployable< int32_t, CommonAPI::SomeIP::IntegerDeployment<int32_t> >, CommonAPI::Deployable< int32_t, CommonAPI::SomeIP::IntegerDeployment<int32_t> >, CommonAPI::Deployable< CommonAPI::ByteBuffer, CommonAPI::SomeIP::ByteBufferDeployment >, CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment >> notifyChunk_;
+    CommonAPI::SomeIP::Event<NotifyUpdateAvailableEvent, CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t> >> notifyUpdateAvailable_;
 
 };
 

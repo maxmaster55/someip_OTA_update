@@ -61,35 +61,40 @@ public:
         return &remoteEventHandler_;
     }
 
-    COMMONAPI_EXPORT virtual void fireNotifyUpdateAvailableEvent(const int32_t &_version_major, const int32_t &_version_minor) {
-        UpdaterStub::fireNotifyUpdateAvailableEvent(_version_major, _version_minor);
+    COMMONAPI_EXPORT virtual void fireNotifyUpdateAvailableEvent(const uint32_t &_versionId) {
+        UpdaterStub::fireNotifyUpdateAvailableEvent(_versionId);
     }
     COMMONAPI_EXPORT virtual void getUpdateInfo(const std::shared_ptr<CommonAPI::ClientId> _client, getUpdateInfoReply_t _reply) {
         (void)_client;
+        uint32_t versionId = 0ul;
         int64_t size = 0;
         std::string md5_hash = "";
         bool is_compressed = false;
-        _reply(size, md5_hash, is_compressed);
+        _reply(versionId, size, md5_hash, is_compressed);
     }
-    COMMONAPI_EXPORT virtual void sendDownloadStatus(const std::shared_ptr<CommonAPI::ClientId> _client, bool _success, bool _retry, std::string _message, sendDownloadStatusReply_t _reply) {
+    COMMONAPI_EXPORT virtual void sendDownloadStatus(const std::shared_ptr<CommonAPI::ClientId> _client, uint32_t _versionId, bool _success, bool _retry, std::string _message, sendDownloadStatusReply_t _reply) {
         (void)_client;
+        (void)_versionId;
         (void)_success;
         (void)_retry;
         (void)_message;
         _reply();
     }
-    COMMONAPI_EXPORT virtual void sendInstallationStatus(const std::shared_ptr<CommonAPI::ClientId> _client, bool _success, std::string _message, sendInstallationStatusReply_t _reply) {
+    COMMONAPI_EXPORT virtual void sendInstallationStatus(const std::shared_ptr<CommonAPI::ClientId> _client, uint32_t _versionId, bool _success, std::string _message, sendInstallationStatusReply_t _reply) {
         (void)_client;
+        (void)_versionId;
         (void)_success;
         (void)_message;
         _reply();
     }
-    COMMONAPI_EXPORT virtual void startUpdate(const std::shared_ptr<CommonAPI::ClientId> _client, startUpdateReply_t _reply) {
+    COMMONAPI_EXPORT virtual void requestData(const std::shared_ptr<CommonAPI::ClientId> _client, uint32_t _versionId, uint32_t _chunkIndex, requestDataReply_t _reply) {
         (void)_client;
-        _reply();
-    }
-    COMMONAPI_EXPORT virtual void fireNotifyChunkEvent(const int32_t &_chunk_index, const int32_t &_total_chunks, const CommonAPI::ByteBuffer &_data, const bool &_is_last) {
-        UpdaterStub::fireNotifyChunkEvent(_chunk_index, _total_chunks, _data, _is_last);
+        (void)_versionId;
+        (void)_chunkIndex;
+        uint32_t chunkIndex_ = 0ul;
+        std::string data = "";
+        bool lastChunk = false;
+        _reply(chunkIndex_, data, lastChunk);
     }
 
 

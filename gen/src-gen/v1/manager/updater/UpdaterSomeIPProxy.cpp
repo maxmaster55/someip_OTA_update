@@ -48,8 +48,7 @@ UpdaterSomeIPProxy::UpdaterSomeIPProxy(
     const CommonAPI::SomeIP::Address &_address,
     const std::shared_ptr<CommonAPI::SomeIP::ProxyConnection> &_connection)
         : CommonAPI::SomeIP::Proxy(_address, _connection),
-          notifyUpdateAvailable_(*this, 0x1b5a, CommonAPI::SomeIP::event_id_t(0x9476), CommonAPI::SomeIP::event_type_e::ET_EVENT , CommonAPI::SomeIP::reliability_type_e::RT_UNRELIABLE, false, std::make_tuple(static_cast< CommonAPI::SomeIP::IntegerDeployment<int32_t>* >(nullptr), static_cast< CommonAPI::SomeIP::IntegerDeployment<int32_t>* >(nullptr))),
-          notifyChunk_(*this, 0x1b5a, CommonAPI::SomeIP::event_id_t(0x9477), CommonAPI::SomeIP::event_type_e::ET_EVENT , CommonAPI::SomeIP::reliability_type_e::RT_UNRELIABLE, false, std::make_tuple(static_cast< CommonAPI::SomeIP::IntegerDeployment<int32_t>* >(nullptr), static_cast< CommonAPI::SomeIP::IntegerDeployment<int32_t>* >(nullptr), static_cast< CommonAPI::SomeIP::ByteBufferDeployment* >(nullptr), static_cast< CommonAPI::EmptyDeployment* >(nullptr)))
+          notifyUpdateAvailable_(*this, 0x1b5a, CommonAPI::SomeIP::event_id_t(0x9476), CommonAPI::SomeIP::event_type_e::ET_EVENT , CommonAPI::SomeIP::reliability_type_e::RT_UNRELIABLE, false, std::make_tuple(static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr)))
 {
 }
 
@@ -60,11 +59,9 @@ UpdaterSomeIPProxy::~UpdaterSomeIPProxy() {
 UpdaterSomeIPProxy::NotifyUpdateAvailableEvent& UpdaterSomeIPProxy::getNotifyUpdateAvailableEvent() {
     return notifyUpdateAvailable_;
 }
-UpdaterSomeIPProxy::NotifyChunkEvent& UpdaterSomeIPProxy::getNotifyChunkEvent() {
-    return notifyChunk_;
-}
 
-void UpdaterSomeIPProxy::getUpdateInfo(CommonAPI::CallStatus &_internalCallStatus, int64_t &_size, std::string &_md5_hash, bool &_is_compressed, const CommonAPI::CallInfo *_info) {
+void UpdaterSomeIPProxy::getUpdateInfo(CommonAPI::CallStatus &_internalCallStatus, uint32_t &_versionId, int64_t &_size, std::string &_md5_hash, bool &_is_compressed, const CommonAPI::CallInfo *_info) {
+    CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t>> deploy_versionId(static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr));
     CommonAPI::Deployable< int64_t, CommonAPI::SomeIP::IntegerDeployment<int64_t>> deploy_size(static_cast< CommonAPI::SomeIP::IntegerDeployment<int64_t>* >(nullptr));
     CommonAPI::Deployable< std::string, CommonAPI::SomeIP::StringDeployment> deploy_md5_hash(static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr));
     CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment> deploy_is_compressed(static_cast< CommonAPI::EmptyDeployment* >(nullptr));
@@ -72,6 +69,10 @@ void UpdaterSomeIPProxy::getUpdateInfo(CommonAPI::CallStatus &_internalCallStatu
         CommonAPI::SomeIP::SerializableArguments<
         >,
         CommonAPI::SomeIP::SerializableArguments<
+            CommonAPI::Deployable<
+                uint32_t,
+                CommonAPI::SomeIP::IntegerDeployment<uint32_t>
+            >,
             CommonAPI::Deployable<
                 int64_t,
                 CommonAPI::SomeIP::IntegerDeployment<int64_t>
@@ -92,13 +93,15 @@ void UpdaterSomeIPProxy::getUpdateInfo(CommonAPI::CallStatus &_internalCallStatu
         false,
         (_info ? _info : &CommonAPI::SomeIP::defaultCallInfo),
         _internalCallStatus,
-        deploy_size, deploy_md5_hash, deploy_is_compressed);
+        deploy_versionId, deploy_size, deploy_md5_hash, deploy_is_compressed);
+    _versionId = deploy_versionId.getValue();
     _size = deploy_size.getValue();
     _md5_hash = deploy_md5_hash.getValue();
     _is_compressed = deploy_is_compressed.getValue();
 }
 
 std::future<CommonAPI::CallStatus> UpdaterSomeIPProxy::getUpdateInfoAsync(GetUpdateInfoAsyncCallback _callback, const CommonAPI::CallInfo *_info) {
+    CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t>> deploy_versionId(static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr));
     CommonAPI::Deployable< int64_t, CommonAPI::SomeIP::IntegerDeployment<int64_t>> deploy_size(static_cast< CommonAPI::SomeIP::IntegerDeployment<int64_t>* >(nullptr));
     CommonAPI::Deployable< std::string, CommonAPI::SomeIP::StringDeployment> deploy_md5_hash(static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr));
     CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment> deploy_is_compressed(static_cast< CommonAPI::EmptyDeployment* >(nullptr));
@@ -106,6 +109,10 @@ std::future<CommonAPI::CallStatus> UpdaterSomeIPProxy::getUpdateInfoAsync(GetUpd
         CommonAPI::SomeIP::SerializableArguments<
         >,
         CommonAPI::SomeIP::SerializableArguments<
+            CommonAPI::Deployable<
+                uint32_t,
+                CommonAPI::SomeIP::IntegerDeployment<uint32_t>
+            >,
             CommonAPI::Deployable<
                 int64_t,
                 CommonAPI::SomeIP::IntegerDeployment<int64_t>
@@ -125,19 +132,24 @@ std::future<CommonAPI::CallStatus> UpdaterSomeIPProxy::getUpdateInfoAsync(GetUpd
         false,
         false,
         (_info ? _info : &CommonAPI::SomeIP::defaultCallInfo),
-        [_callback] (CommonAPI::CallStatus _internalCallStatus, CommonAPI::Deployable< int64_t, CommonAPI::SomeIP::IntegerDeployment<int64_t> > _size, CommonAPI::Deployable< std::string, CommonAPI::SomeIP::StringDeployment > _md5_hash, CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment > _is_compressed) {
+        [_callback] (CommonAPI::CallStatus _internalCallStatus, CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t> > _versionId, CommonAPI::Deployable< int64_t, CommonAPI::SomeIP::IntegerDeployment<int64_t> > _size, CommonAPI::Deployable< std::string, CommonAPI::SomeIP::StringDeployment > _md5_hash, CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment > _is_compressed) {
             if (_callback)
-                _callback(_internalCallStatus, _size.getValue(), _md5_hash.getValue(), _is_compressed.getValue());
+                _callback(_internalCallStatus, _versionId.getValue(), _size.getValue(), _md5_hash.getValue(), _is_compressed.getValue());
         },
-        std::make_tuple(deploy_size, deploy_md5_hash, deploy_is_compressed));
+        std::make_tuple(deploy_versionId, deploy_size, deploy_md5_hash, deploy_is_compressed));
 }
 
-void UpdaterSomeIPProxy::sendDownloadStatus(bool _success, bool _retry, std::string _message, CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info) {
+void UpdaterSomeIPProxy::sendDownloadStatus(uint32_t _versionId, bool _success, bool _retry, std::string _message, CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info) {
+    CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t>> deploy_versionId(_versionId, static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr));
     CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment> deploy_success(_success, static_cast< CommonAPI::EmptyDeployment* >(nullptr));
     CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment> deploy_retry(_retry, static_cast< CommonAPI::EmptyDeployment* >(nullptr));
     CommonAPI::Deployable< std::string, CommonAPI::SomeIP::StringDeployment> deploy_message(_message, static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr));
     CommonAPI::SomeIP::ProxyHelper<
         CommonAPI::SomeIP::SerializableArguments<
+            CommonAPI::Deployable<
+                uint32_t,
+                CommonAPI::SomeIP::IntegerDeployment<uint32_t>
+            >,
             CommonAPI::Deployable<
                 bool,
                 CommonAPI::EmptyDeployment
@@ -159,16 +171,21 @@ void UpdaterSomeIPProxy::sendDownloadStatus(bool _success, bool _retry, std::str
         false,
         false,
         (_info ? _info : &CommonAPI::SomeIP::defaultCallInfo),
-        deploy_success, deploy_retry, deploy_message,
+        deploy_versionId, deploy_success, deploy_retry, deploy_message,
         _internalCallStatus);
 }
 
-std::future<CommonAPI::CallStatus> UpdaterSomeIPProxy::sendDownloadStatusAsync(const bool &_success, const bool &_retry, const std::string &_message, SendDownloadStatusAsyncCallback _callback, const CommonAPI::CallInfo *_info) {
+std::future<CommonAPI::CallStatus> UpdaterSomeIPProxy::sendDownloadStatusAsync(const uint32_t &_versionId, const bool &_success, const bool &_retry, const std::string &_message, SendDownloadStatusAsyncCallback _callback, const CommonAPI::CallInfo *_info) {
+    CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t>> deploy_versionId(_versionId, static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr));
     CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment> deploy_success(_success, static_cast< CommonAPI::EmptyDeployment* >(nullptr));
     CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment> deploy_retry(_retry, static_cast< CommonAPI::EmptyDeployment* >(nullptr));
     CommonAPI::Deployable< std::string, CommonAPI::SomeIP::StringDeployment> deploy_message(_message, static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr));
     return CommonAPI::SomeIP::ProxyHelper<
         CommonAPI::SomeIP::SerializableArguments<
+            CommonAPI::Deployable<
+                uint32_t,
+                CommonAPI::SomeIP::IntegerDeployment<uint32_t>
+            >,
             CommonAPI::Deployable<
                 bool,
                 CommonAPI::EmptyDeployment
@@ -190,7 +207,7 @@ std::future<CommonAPI::CallStatus> UpdaterSomeIPProxy::sendDownloadStatusAsync(c
         false,
         false,
         (_info ? _info : &CommonAPI::SomeIP::defaultCallInfo),
-        deploy_success, deploy_retry, deploy_message,
+        deploy_versionId, deploy_success, deploy_retry, deploy_message,
         [_callback] (CommonAPI::CallStatus _internalCallStatus) {
             if (_callback)
                 _callback(_internalCallStatus);
@@ -198,11 +215,16 @@ std::future<CommonAPI::CallStatus> UpdaterSomeIPProxy::sendDownloadStatusAsync(c
         std::make_tuple());
 }
 
-void UpdaterSomeIPProxy::sendInstallationStatus(bool _success, std::string _message, CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info) {
+void UpdaterSomeIPProxy::sendInstallationStatus(uint32_t _versionId, bool _success, std::string _message, CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info) {
+    CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t>> deploy_versionId(_versionId, static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr));
     CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment> deploy_success(_success, static_cast< CommonAPI::EmptyDeployment* >(nullptr));
     CommonAPI::Deployable< std::string, CommonAPI::SomeIP::StringDeployment> deploy_message(_message, static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr));
     CommonAPI::SomeIP::ProxyHelper<
         CommonAPI::SomeIP::SerializableArguments<
+            CommonAPI::Deployable<
+                uint32_t,
+                CommonAPI::SomeIP::IntegerDeployment<uint32_t>
+            >,
             CommonAPI::Deployable<
                 bool,
                 CommonAPI::EmptyDeployment
@@ -220,15 +242,20 @@ void UpdaterSomeIPProxy::sendInstallationStatus(bool _success, std::string _mess
         false,
         false,
         (_info ? _info : &CommonAPI::SomeIP::defaultCallInfo),
-        deploy_success, deploy_message,
+        deploy_versionId, deploy_success, deploy_message,
         _internalCallStatus);
 }
 
-std::future<CommonAPI::CallStatus> UpdaterSomeIPProxy::sendInstallationStatusAsync(const bool &_success, const std::string &_message, SendInstallationStatusAsyncCallback _callback, const CommonAPI::CallInfo *_info) {
+std::future<CommonAPI::CallStatus> UpdaterSomeIPProxy::sendInstallationStatusAsync(const uint32_t &_versionId, const bool &_success, const std::string &_message, SendInstallationStatusAsyncCallback _callback, const CommonAPI::CallInfo *_info) {
+    CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t>> deploy_versionId(_versionId, static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr));
     CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment> deploy_success(_success, static_cast< CommonAPI::EmptyDeployment* >(nullptr));
     CommonAPI::Deployable< std::string, CommonAPI::SomeIP::StringDeployment> deploy_message(_message, static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr));
     return CommonAPI::SomeIP::ProxyHelper<
         CommonAPI::SomeIP::SerializableArguments<
+            CommonAPI::Deployable<
+                uint32_t,
+                CommonAPI::SomeIP::IntegerDeployment<uint32_t>
+            >,
             CommonAPI::Deployable<
                 bool,
                 CommonAPI::EmptyDeployment
@@ -246,7 +273,7 @@ std::future<CommonAPI::CallStatus> UpdaterSomeIPProxy::sendInstallationStatusAsy
         false,
         false,
         (_info ? _info : &CommonAPI::SomeIP::defaultCallInfo),
-        deploy_success, deploy_message,
+        deploy_versionId, deploy_success, deploy_message,
         [_callback] (CommonAPI::CallStatus _internalCallStatus) {
             if (_callback)
                 _callback(_internalCallStatus);
@@ -254,11 +281,36 @@ std::future<CommonAPI::CallStatus> UpdaterSomeIPProxy::sendInstallationStatusAsy
         std::make_tuple());
 }
 
-void UpdaterSomeIPProxy::startUpdate(CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info) {
+void UpdaterSomeIPProxy::requestData(uint32_t _versionId, uint32_t _chunkIndex, CommonAPI::CallStatus &_internalCallStatus, uint32_t &_chunkIndex_, std::string &_data, bool &_lastChunk, const CommonAPI::CallInfo *_info) {
+    CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t>> deploy_versionId(_versionId, static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr));
+    CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t>> deploy_chunkIndex(_chunkIndex, static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr));
+    CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t>> deploy_chunkIndex_(static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr));
+    CommonAPI::Deployable< std::string, CommonAPI::SomeIP::StringDeployment> deploy_data(static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr));
+    CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment> deploy_lastChunk(static_cast< CommonAPI::EmptyDeployment* >(nullptr));
     CommonAPI::SomeIP::ProxyHelper<
         CommonAPI::SomeIP::SerializableArguments<
+            CommonAPI::Deployable<
+                uint32_t,
+                CommonAPI::SomeIP::IntegerDeployment<uint32_t>
+            >,
+            CommonAPI::Deployable<
+                uint32_t,
+                CommonAPI::SomeIP::IntegerDeployment<uint32_t>
+            >
         >,
         CommonAPI::SomeIP::SerializableArguments<
+            CommonAPI::Deployable<
+                uint32_t,
+                CommonAPI::SomeIP::IntegerDeployment<uint32_t>
+            >,
+            CommonAPI::Deployable<
+                std::string,
+                CommonAPI::SomeIP::StringDeployment
+            >,
+            CommonAPI::Deployable<
+                bool,
+                CommonAPI::EmptyDeployment
+            >
         >
     >::callMethodWithReply(
         *this,
@@ -266,14 +318,44 @@ void UpdaterSomeIPProxy::startUpdate(CommonAPI::CallStatus &_internalCallStatus,
         false,
         false,
         (_info ? _info : &CommonAPI::SomeIP::defaultCallInfo),
-        _internalCallStatus);
+        deploy_versionId, deploy_chunkIndex,
+        _internalCallStatus,
+        deploy_chunkIndex_, deploy_data, deploy_lastChunk);
+    _chunkIndex_ = deploy_chunkIndex_.getValue();
+    _data = deploy_data.getValue();
+    _lastChunk = deploy_lastChunk.getValue();
 }
 
-std::future<CommonAPI::CallStatus> UpdaterSomeIPProxy::startUpdateAsync(StartUpdateAsyncCallback _callback, const CommonAPI::CallInfo *_info) {
+std::future<CommonAPI::CallStatus> UpdaterSomeIPProxy::requestDataAsync(const uint32_t &_versionId, const uint32_t &_chunkIndex, RequestDataAsyncCallback _callback, const CommonAPI::CallInfo *_info) {
+    CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t>> deploy_versionId(_versionId, static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr));
+    CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t>> deploy_chunkIndex(_chunkIndex, static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr));
+    CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t>> deploy_chunkIndex_(static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr));
+    CommonAPI::Deployable< std::string, CommonAPI::SomeIP::StringDeployment> deploy_data(static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr));
+    CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment> deploy_lastChunk(static_cast< CommonAPI::EmptyDeployment* >(nullptr));
     return CommonAPI::SomeIP::ProxyHelper<
         CommonAPI::SomeIP::SerializableArguments<
+            CommonAPI::Deployable<
+                uint32_t,
+                CommonAPI::SomeIP::IntegerDeployment<uint32_t>
+            >,
+            CommonAPI::Deployable<
+                uint32_t,
+                CommonAPI::SomeIP::IntegerDeployment<uint32_t>
+            >
         >,
         CommonAPI::SomeIP::SerializableArguments<
+            CommonAPI::Deployable<
+                uint32_t,
+                CommonAPI::SomeIP::IntegerDeployment<uint32_t>
+            >,
+            CommonAPI::Deployable<
+                std::string,
+                CommonAPI::SomeIP::StringDeployment
+            >,
+            CommonAPI::Deployable<
+                bool,
+                CommonAPI::EmptyDeployment
+            >
         >
     >::callMethodAsync(
         *this,
@@ -281,11 +363,12 @@ std::future<CommonAPI::CallStatus> UpdaterSomeIPProxy::startUpdateAsync(StartUpd
         false,
         false,
         (_info ? _info : &CommonAPI::SomeIP::defaultCallInfo),
-        [_callback] (CommonAPI::CallStatus _internalCallStatus) {
+        deploy_versionId, deploy_chunkIndex,
+        [_callback] (CommonAPI::CallStatus _internalCallStatus, CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t> > _chunkIndex_, CommonAPI::Deployable< std::string, CommonAPI::SomeIP::StringDeployment > _data, CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment > _lastChunk) {
             if (_callback)
-                _callback(_internalCallStatus);
+                _callback(_internalCallStatus, _chunkIndex_.getValue(), _data.getValue(), _lastChunk.getValue());
         },
-        std::make_tuple());
+        std::make_tuple(deploy_chunkIndex_, deploy_data, deploy_lastChunk));
 }
 
 void UpdaterSomeIPProxy::getOwnVersion(uint16_t& ownVersionMajor, uint16_t& ownVersionMinor) const {

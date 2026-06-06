@@ -11,7 +11,6 @@
 #define V1_MANAGER_UPDATER_UPDATER_SOMEIP_STUB_ADAPTER_HPP_
 
 #include <v1/manager/updater/UpdaterStub.hpp>
-#include <v1/manager/updater/UpdaterSomeIPDeployment.hpp>
 
 #if !defined (COMMONAPI_INTERNAL_COMPILATION)
 #define COMMONAPI_INTERNAL_COMPILATION
@@ -48,9 +47,7 @@ public:
         UpdaterSomeIPStubAdapterHelper::deinit();
     }
 
-    void fireNotifyUpdateAvailableEvent(const int32_t &_version_major, const int32_t &_version_minor);
-
-    void fireNotifyChunkEvent(const int32_t &_chunk_index, const int32_t &_total_chunks, const CommonAPI::ByteBuffer &_data, const bool &_is_last);
+    void fireNotifyUpdateAvailableEvent(const uint32_t &_versionId);
 
     void deactivateManagedInstances() {}
     
@@ -62,34 +59,34 @@ public:
     CommonAPI::SomeIP::MethodWithReplyStubDispatcher<
         ::v1::manager::updater::UpdaterStub,
         std::tuple< >,
-        std::tuple< int64_t, std::string, bool>,
+        std::tuple< uint32_t, int64_t, std::string, bool>,
         std::tuple< >,
-        std::tuple< CommonAPI::SomeIP::IntegerDeployment<int64_t>, CommonAPI::SomeIP::StringDeployment, CommonAPI::EmptyDeployment>
+        std::tuple< CommonAPI::SomeIP::IntegerDeployment<uint32_t>, CommonAPI::SomeIP::IntegerDeployment<int64_t>, CommonAPI::SomeIP::StringDeployment, CommonAPI::EmptyDeployment>
     > getUpdateInfoStubDispatcher;
     
     CommonAPI::SomeIP::MethodWithReplyStubDispatcher<
         ::v1::manager::updater::UpdaterStub,
-        std::tuple< bool, bool, std::string>,
+        std::tuple< uint32_t, bool, bool, std::string>,
         std::tuple< >,
-        std::tuple< CommonAPI::EmptyDeployment, CommonAPI::EmptyDeployment, CommonAPI::SomeIP::StringDeployment>,
+        std::tuple< CommonAPI::SomeIP::IntegerDeployment<uint32_t>, CommonAPI::EmptyDeployment, CommonAPI::EmptyDeployment, CommonAPI::SomeIP::StringDeployment>,
         std::tuple< >
     > sendDownloadStatusStubDispatcher;
     
     CommonAPI::SomeIP::MethodWithReplyStubDispatcher<
         ::v1::manager::updater::UpdaterStub,
-        std::tuple< bool, std::string>,
+        std::tuple< uint32_t, bool, std::string>,
         std::tuple< >,
-        std::tuple< CommonAPI::EmptyDeployment, CommonAPI::SomeIP::StringDeployment>,
+        std::tuple< CommonAPI::SomeIP::IntegerDeployment<uint32_t>, CommonAPI::EmptyDeployment, CommonAPI::SomeIP::StringDeployment>,
         std::tuple< >
     > sendInstallationStatusStubDispatcher;
     
     CommonAPI::SomeIP::MethodWithReplyStubDispatcher<
         ::v1::manager::updater::UpdaterStub,
-        std::tuple< >,
-        std::tuple< >,
-        std::tuple< >,
-        std::tuple< >
-    > startUpdateStubDispatcher;
+        std::tuple< uint32_t, uint32_t>,
+        std::tuple< uint32_t, std::string, bool>,
+        std::tuple< CommonAPI::SomeIP::IntegerDeployment<uint32_t>, CommonAPI::SomeIP::IntegerDeployment<uint32_t>>,
+        std::tuple< CommonAPI::SomeIP::IntegerDeployment<uint32_t>, CommonAPI::SomeIP::StringDeployment, CommonAPI::EmptyDeployment>
+    > requestDataStubDispatcher;
     
     UpdaterSomeIPStubAdapterInternal(
         const CommonAPI::SomeIP::Address &_address,
@@ -106,14 +103,14 @@ public:
             false,
             _stub->hasElement(1),
             std::make_tuple(),
-            std::make_tuple(static_cast< CommonAPI::SomeIP::IntegerDeployment<int64_t>* >(nullptr), static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr), static_cast< CommonAPI::EmptyDeployment* >(nullptr)))
+            std::make_tuple(static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr), static_cast< CommonAPI::SomeIP::IntegerDeployment<int64_t>* >(nullptr), static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr), static_cast< CommonAPI::EmptyDeployment* >(nullptr)))
         
         ,
         sendDownloadStatusStubDispatcher(
             &UpdaterStub::sendDownloadStatus,
             false,
             _stub->hasElement(2),
-            std::make_tuple(static_cast< CommonAPI::EmptyDeployment* >(nullptr), static_cast< CommonAPI::EmptyDeployment* >(nullptr), static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr)),
+            std::make_tuple(static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr), static_cast< CommonAPI::EmptyDeployment* >(nullptr), static_cast< CommonAPI::EmptyDeployment* >(nullptr), static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr)),
             std::make_tuple())
         
         ,
@@ -121,32 +118,27 @@ public:
             &UpdaterStub::sendInstallationStatus,
             false,
             _stub->hasElement(3),
-            std::make_tuple(static_cast< CommonAPI::EmptyDeployment* >(nullptr), static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr)),
+            std::make_tuple(static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr), static_cast< CommonAPI::EmptyDeployment* >(nullptr), static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr)),
             std::make_tuple())
         
         ,
-        startUpdateStubDispatcher(
-            &UpdaterStub::startUpdate,
+        requestDataStubDispatcher(
+            &UpdaterStub::requestData,
             false,
             _stub->hasElement(4),
-            std::make_tuple(),
-            std::make_tuple())
+            std::make_tuple(static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr), static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr)),
+            std::make_tuple(static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr), static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr), static_cast< CommonAPI::EmptyDeployment* >(nullptr)))
         
     {
         UpdaterSomeIPStubAdapterHelper::addStubDispatcher( { CommonAPI::SomeIP::method_id_t(0x3) }, &getUpdateInfoStubDispatcher );
         UpdaterSomeIPStubAdapterHelper::addStubDispatcher( { CommonAPI::SomeIP::method_id_t(0x4) }, &sendDownloadStatusStubDispatcher );
         UpdaterSomeIPStubAdapterHelper::addStubDispatcher( { CommonAPI::SomeIP::method_id_t(0x5) }, &sendInstallationStatusStubDispatcher );
-        UpdaterSomeIPStubAdapterHelper::addStubDispatcher( { CommonAPI::SomeIP::method_id_t(0x6) }, &startUpdateStubDispatcher );
+        UpdaterSomeIPStubAdapterHelper::addStubDispatcher( { CommonAPI::SomeIP::method_id_t(0x6) }, &requestDataStubDispatcher );
         // Provided events/fields
         {
             std::set<CommonAPI::SomeIP::eventgroup_id_t> itsEventGroups;
             itsEventGroups.insert(CommonAPI::SomeIP::eventgroup_id_t(0x1b5a));
             CommonAPI::SomeIP::StubAdapter::registerEvent(CommonAPI::SomeIP::event_id_t(0x9476), itsEventGroups, CommonAPI::SomeIP::event_type_e::ET_EVENT, CommonAPI::SomeIP::reliability_type_e::RT_UNRELIABLE);
-        }
-        {
-            std::set<CommonAPI::SomeIP::eventgroup_id_t> itsEventGroups;
-            itsEventGroups.insert(CommonAPI::SomeIP::eventgroup_id_t(0x1b5a));
-            CommonAPI::SomeIP::StubAdapter::registerEvent(CommonAPI::SomeIP::event_id_t(0x9477), itsEventGroups, CommonAPI::SomeIP::event_type_e::ET_EVENT, CommonAPI::SomeIP::reliability_type_e::RT_UNRELIABLE);
         }
     }
 
@@ -157,39 +149,15 @@ public:
 };
 
 template <typename _Stub, typename... _Stubs>
-void UpdaterSomeIPStubAdapterInternal<_Stub, _Stubs...>::fireNotifyUpdateAvailableEvent(const int32_t &_version_major, const int32_t &_version_minor) {
-    CommonAPI::Deployable< int32_t, CommonAPI::SomeIP::IntegerDeployment<int32_t>> deployed_version_major(_version_major, static_cast< CommonAPI::SomeIP::IntegerDeployment<int32_t>* >(nullptr));
-    CommonAPI::Deployable< int32_t, CommonAPI::SomeIP::IntegerDeployment<int32_t>> deployed_version_minor(_version_minor, static_cast< CommonAPI::SomeIP::IntegerDeployment<int32_t>* >(nullptr));
-    CommonAPI::SomeIP::StubEventHelper<CommonAPI::SomeIP::SerializableArguments<  CommonAPI::Deployable< int32_t, CommonAPI::SomeIP::IntegerDeployment<int32_t> > 
-    ,  CommonAPI::Deployable< int32_t, CommonAPI::SomeIP::IntegerDeployment<int32_t> > 
+void UpdaterSomeIPStubAdapterInternal<_Stub, _Stubs...>::fireNotifyUpdateAvailableEvent(const uint32_t &_versionId) {
+    CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t>> deployed_versionId(_versionId, static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr));
+    CommonAPI::SomeIP::StubEventHelper<CommonAPI::SomeIP::SerializableArguments<  CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t> > 
     >>
         ::sendEvent(
             *this,
             CommonAPI::SomeIP::event_id_t(0x9476),
             false,
-             deployed_version_major 
-            ,  deployed_version_minor 
-    );
-}
-
-template <typename _Stub, typename... _Stubs>
-void UpdaterSomeIPStubAdapterInternal<_Stub, _Stubs...>::fireNotifyChunkEvent(const int32_t &_chunk_index, const int32_t &_total_chunks, const CommonAPI::ByteBuffer &_data, const bool &_is_last) {
-    CommonAPI::Deployable< int32_t, CommonAPI::SomeIP::IntegerDeployment<int32_t>> deployed_chunk_index(_chunk_index, static_cast< CommonAPI::SomeIP::IntegerDeployment<int32_t>* >(nullptr));
-    CommonAPI::Deployable< int32_t, CommonAPI::SomeIP::IntegerDeployment<int32_t>> deployed_total_chunks(_total_chunks, static_cast< CommonAPI::SomeIP::IntegerDeployment<int32_t>* >(nullptr));
-    CommonAPI::Deployable< CommonAPI::ByteBuffer, CommonAPI::SomeIP::ByteBufferDeployment> deployed_data(_data, static_cast< CommonAPI::SomeIP::ByteBufferDeployment* >(nullptr));
-    CommonAPI::SomeIP::StubEventHelper<CommonAPI::SomeIP::SerializableArguments<  CommonAPI::Deployable< int32_t, CommonAPI::SomeIP::IntegerDeployment<int32_t> > 
-    ,  CommonAPI::Deployable< int32_t, CommonAPI::SomeIP::IntegerDeployment<int32_t> > 
-    ,  CommonAPI::Deployable< CommonAPI::ByteBuffer, CommonAPI::SomeIP::ByteBufferDeployment > 
-    ,  bool
-    >>
-        ::sendEvent(
-            *this,
-            CommonAPI::SomeIP::event_id_t(0x9477),
-            false,
-             deployed_chunk_index 
-            ,  deployed_total_chunks 
-            ,  deployed_data 
-            , _is_last
+             deployed_versionId 
     );
 }
 

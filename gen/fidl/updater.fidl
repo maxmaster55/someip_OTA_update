@@ -7,13 +7,13 @@ interface Updater {
     
     broadcast notifyUpdateAvailable {
         out{
-            Int32 version_major
-            Int32 version_minor
+            UInt32 versionId
         } 
     }
 
     method getUpdateInfo {
         out {
+            UInt32 versionId
             Int64 size
             String md5_hash
             Boolean is_compressed
@@ -22,6 +22,7 @@ interface Updater {
 
     method sendDownloadStatus {
         in {
+            UInt32 versionId
             Boolean success
             Boolean retry
             String message
@@ -30,20 +31,23 @@ interface Updater {
 
     method sendInstallationStatus {
         in {
+            UInt32 versionId
             Boolean success
             String message
         }
     }
 
-    method startUpdate { }
-
-    broadcast notifyChunk {
+    method  requestData {
+        in {
+            UInt32 versionId
+            UInt32 chunkIndex
+        }
         out {
-            Int32 chunk_index
-            Int32 total_chunks
-            ByteBuffer data // will send 1400 bytes per chunk except, last chunk which may be smaller
-            Boolean is_last
+            UInt32 chunkIndex
+            String data
+            Boolean lastChunk
         }
     }
+
 }
  

@@ -20,7 +20,7 @@ interface Updater {
         }
     }
 
-    method sendDownloadStatus {
+    method getDownloadStatus {
         in {
             UInt32 versionId
             Boolean success
@@ -29,7 +29,7 @@ interface Updater {
         }
     }
 
-    method sendInstallationStatus {
+    method getInstallationStatus {
         in {
             UInt32 versionId
             Boolean success

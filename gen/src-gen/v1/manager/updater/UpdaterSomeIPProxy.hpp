@@ -61,13 +61,13 @@ public:
 
     virtual std::future<CommonAPI::CallStatus> getUpdateInfoAsync(GetUpdateInfoAsyncCallback _callback, const CommonAPI::CallInfo *_info);
 
-    virtual void sendDownloadStatus(uint32_t _versionId, bool _success, bool _retry, std::string _message, CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info);
+    virtual void getDownloadStatus(uint32_t _versionId, bool _success, bool _retry, std::string _message, CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info);
 
-    virtual std::future<CommonAPI::CallStatus> sendDownloadStatusAsync(const uint32_t &_versionId, const bool &_success, const bool &_retry, const std::string &_message, SendDownloadStatusAsyncCallback _callback, const CommonAPI::CallInfo *_info);
+    virtual std::future<CommonAPI::CallStatus> getDownloadStatusAsync(const uint32_t &_versionId, const bool &_success, const bool &_retry, const std::string &_message, GetDownloadStatusAsyncCallback _callback, const CommonAPI::CallInfo *_info);
 
-    virtual void sendInstallationStatus(uint32_t _versionId, bool _success, std::string _message, CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info);
+    virtual void getInstallationStatus(uint32_t _versionId, bool _success, std::string _message, CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info);
 
-    virtual std::future<CommonAPI::CallStatus> sendInstallationStatusAsync(const uint32_t &_versionId, const bool &_success, const std::string &_message, SendInstallationStatusAsyncCallback _callback, const CommonAPI::CallInfo *_info);
+    virtual std::future<CommonAPI::CallStatus> getInstallationStatusAsync(const uint32_t &_versionId, const bool &_success, const std::string &_message, GetInstallationStatusAsyncCallback _callback, const CommonAPI::CallInfo *_info);
 
     virtual void requestData(uint32_t _versionId, uint32_t _chunkIndex, CommonAPI::CallStatus &_internalCallStatus, uint32_t &_chunkIndex_, std::string &_data, bool &_lastChunk, const CommonAPI::CallInfo *_info);
 

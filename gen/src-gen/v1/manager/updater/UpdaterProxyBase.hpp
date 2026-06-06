@@ -43,17 +43,17 @@ public:
     > NotifyUpdateAvailableEvent;
 
     typedef std::function<void(const CommonAPI::CallStatus&, const uint32_t&, const int64_t&, const std::string&, const bool&)> GetUpdateInfoAsyncCallback;
-    typedef std::function<void(const CommonAPI::CallStatus&)> SendDownloadStatusAsyncCallback;
-    typedef std::function<void(const CommonAPI::CallStatus&)> SendInstallationStatusAsyncCallback;
+    typedef std::function<void(const CommonAPI::CallStatus&)> GetDownloadStatusAsyncCallback;
+    typedef std::function<void(const CommonAPI::CallStatus&)> GetInstallationStatusAsyncCallback;
     typedef std::function<void(const CommonAPI::CallStatus&, const uint32_t&, const std::string&, const bool&)> RequestDataAsyncCallback;
 
     virtual NotifyUpdateAvailableEvent& getNotifyUpdateAvailableEvent() = 0;
     virtual void getUpdateInfo(CommonAPI::CallStatus &_internalCallStatus, uint32_t &_versionId, int64_t &_size, std::string &_md5_hash, bool &_is_compressed, const CommonAPI::CallInfo *_info = nullptr) = 0;
     virtual std::future<CommonAPI::CallStatus> getUpdateInfoAsync(GetUpdateInfoAsyncCallback _callback = nullptr, const CommonAPI::CallInfo *_info = nullptr) = 0;
-    virtual void sendDownloadStatus(uint32_t _versionId, bool _success, bool _retry, std::string _message, CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info = nullptr) = 0;
-    virtual std::future<CommonAPI::CallStatus> sendDownloadStatusAsync(const uint32_t &_versionId, const bool &_success, const bool &_retry, const std::string &_message, SendDownloadStatusAsyncCallback _callback = nullptr, const CommonAPI::CallInfo *_info = nullptr) = 0;
-    virtual void sendInstallationStatus(uint32_t _versionId, bool _success, std::string _message, CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info = nullptr) = 0;
-    virtual std::future<CommonAPI::CallStatus> sendInstallationStatusAsync(const uint32_t &_versionId, const bool &_success, const std::string &_message, SendInstallationStatusAsyncCallback _callback = nullptr, const CommonAPI::CallInfo *_info = nullptr) = 0;
+    virtual void getDownloadStatus(uint32_t _versionId, bool _success, bool _retry, std::string _message, CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info = nullptr) = 0;
+    virtual std::future<CommonAPI::CallStatus> getDownloadStatusAsync(const uint32_t &_versionId, const bool &_success, const bool &_retry, const std::string &_message, GetDownloadStatusAsyncCallback _callback = nullptr, const CommonAPI::CallInfo *_info = nullptr) = 0;
+    virtual void getInstallationStatus(uint32_t _versionId, bool _success, std::string _message, CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info = nullptr) = 0;
+    virtual std::future<CommonAPI::CallStatus> getInstallationStatusAsync(const uint32_t &_versionId, const bool &_success, const std::string &_message, GetInstallationStatusAsyncCallback _callback = nullptr, const CommonAPI::CallInfo *_info = nullptr) = 0;
     virtual void requestData(uint32_t _versionId, uint32_t _chunkIndex, CommonAPI::CallStatus &_internalCallStatus, uint32_t &_chunkIndex_, std::string &_data, bool &_lastChunk, const CommonAPI::CallInfo *_info = nullptr) = 0;
     virtual std::future<CommonAPI::CallStatus> requestDataAsync(const uint32_t &_versionId, const uint32_t &_chunkIndex, RequestDataAsyncCallback _callback = nullptr, const CommonAPI::CallInfo *_info = nullptr) = 0;
 

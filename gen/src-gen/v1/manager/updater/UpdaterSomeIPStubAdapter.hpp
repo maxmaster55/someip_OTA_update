@@ -70,7 +70,7 @@ public:
         std::tuple< >,
         std::tuple< CommonAPI::SomeIP::IntegerDeployment<uint32_t>, CommonAPI::EmptyDeployment, CommonAPI::EmptyDeployment, CommonAPI::SomeIP::StringDeployment>,
         std::tuple< >
-    > sendDownloadStatusStubDispatcher;
+    > getDownloadStatusStubDispatcher;
     
     CommonAPI::SomeIP::MethodWithReplyStubDispatcher<
         ::v1::manager::updater::UpdaterStub,
@@ -78,7 +78,7 @@ public:
         std::tuple< >,
         std::tuple< CommonAPI::SomeIP::IntegerDeployment<uint32_t>, CommonAPI::EmptyDeployment, CommonAPI::SomeIP::StringDeployment>,
         std::tuple< >
-    > sendInstallationStatusStubDispatcher;
+    > getInstallationStatusStubDispatcher;
     
     CommonAPI::SomeIP::MethodWithReplyStubDispatcher<
         ::v1::manager::updater::UpdaterStub,
@@ -106,16 +106,16 @@ public:
             std::make_tuple(static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr), static_cast< CommonAPI::SomeIP::IntegerDeployment<int64_t>* >(nullptr), static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr), static_cast< CommonAPI::EmptyDeployment* >(nullptr)))
         
         ,
-        sendDownloadStatusStubDispatcher(
-            &UpdaterStub::sendDownloadStatus,
+        getDownloadStatusStubDispatcher(
+            &UpdaterStub::getDownloadStatus,
             false,
             _stub->hasElement(2),
             std::make_tuple(static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr), static_cast< CommonAPI::EmptyDeployment* >(nullptr), static_cast< CommonAPI::EmptyDeployment* >(nullptr), static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr)),
             std::make_tuple())
         
         ,
-        sendInstallationStatusStubDispatcher(
-            &UpdaterStub::sendInstallationStatus,
+        getInstallationStatusStubDispatcher(
+            &UpdaterStub::getInstallationStatus,
             false,
             _stub->hasElement(3),
             std::make_tuple(static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr), static_cast< CommonAPI::EmptyDeployment* >(nullptr), static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr)),
@@ -131,8 +131,8 @@ public:
         
     {
         UpdaterSomeIPStubAdapterHelper::addStubDispatcher( { CommonAPI::SomeIP::method_id_t(0x3) }, &getUpdateInfoStubDispatcher );
-        UpdaterSomeIPStubAdapterHelper::addStubDispatcher( { CommonAPI::SomeIP::method_id_t(0x4) }, &sendDownloadStatusStubDispatcher );
-        UpdaterSomeIPStubAdapterHelper::addStubDispatcher( { CommonAPI::SomeIP::method_id_t(0x5) }, &sendInstallationStatusStubDispatcher );
+        UpdaterSomeIPStubAdapterHelper::addStubDispatcher( { CommonAPI::SomeIP::method_id_t(0x4) }, &getDownloadStatusStubDispatcher );
+        UpdaterSomeIPStubAdapterHelper::addStubDispatcher( { CommonAPI::SomeIP::method_id_t(0x5) }, &getInstallationStatusStubDispatcher );
         UpdaterSomeIPStubAdapterHelper::addStubDispatcher( { CommonAPI::SomeIP::method_id_t(0x6) }, &requestDataStubDispatcher );
         // Provided events/fields
         {

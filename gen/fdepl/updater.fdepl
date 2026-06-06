@@ -16,12 +16,12 @@ define org.genivi.commonapi.someip.deployment for interface manager.updater.Upda
         SomeIpReliable = false
     }  
 
-    method sendDownloadStatus {
+    method getDownloadStatus {
         SomeIpMethodID = 4
         SomeIpReliable = false
     }  
 
-    method sendInstallationStatus {
+    method getInstallationStatus {
         SomeIpMethodID = 5
         SomeIpReliable = false
     }  

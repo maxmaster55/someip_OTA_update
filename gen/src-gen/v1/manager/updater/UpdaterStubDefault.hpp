@@ -72,7 +72,7 @@ public:
         bool is_compressed = false;
         _reply(versionId, size, md5_hash, is_compressed);
     }
-    COMMONAPI_EXPORT virtual void sendDownloadStatus(const std::shared_ptr<CommonAPI::ClientId> _client, uint32_t _versionId, bool _success, bool _retry, std::string _message, sendDownloadStatusReply_t _reply) {
+    COMMONAPI_EXPORT virtual void getDownloadStatus(const std::shared_ptr<CommonAPI::ClientId> _client, uint32_t _versionId, bool _success, bool _retry, std::string _message, getDownloadStatusReply_t _reply) {
         (void)_client;
         (void)_versionId;
         (void)_success;
@@ -80,7 +80,7 @@ public:
         (void)_message;
         _reply();
     }
-    COMMONAPI_EXPORT virtual void sendInstallationStatus(const std::shared_ptr<CommonAPI::ClientId> _client, uint32_t _versionId, bool _success, std::string _message, sendInstallationStatusReply_t _reply) {
+    COMMONAPI_EXPORT virtual void getInstallationStatus(const std::shared_ptr<CommonAPI::ClientId> _client, uint32_t _versionId, bool _success, std::string _message, getInstallationStatusReply_t _reply) {
         (void)_client;
         (void)_versionId;
         (void)_success;

@@ -96,16 +96,16 @@ public:
      */
     virtual std::future<CommonAPI::CallStatus> getUpdateInfoAsync(GetUpdateInfoAsyncCallback _callback = nullptr, const CommonAPI::CallInfo *_info = nullptr);
     /**
-     * Calls sendDownloadStatus with synchronous semantics.
+     * Calls getDownloadStatus with synchronous semantics.
      *
      * All const parameters are input parameters to this method.
      * The CallStatus will be filled when the method returns and indicate either
      * "SUCCESS" or which type of error has occurred. In case of an error, ONLY the CallStatus
      * will be set.
      */
-    virtual void sendDownloadStatus(uint32_t _versionId, bool _success, bool _retry, std::string _message, CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info = nullptr);
+    virtual void getDownloadStatus(uint32_t _versionId, bool _success, bool _retry, std::string _message, CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info = nullptr);
     /**
-     * Calls sendDownloadStatus with asynchronous semantics.
+     * Calls getDownloadStatus with asynchronous semantics.
      *
      * The provided callback will be called when the reply to this call arrives or
      * an error occurs during the call. The CallStatus will indicate either "SUCCESS"
@@ -114,18 +114,18 @@ public:
      * The std::future returned by this method will be fulfilled at arrival of the reply.
      * It will provide the same value for CallStatus as will be handed to the callback.
      */
-    virtual std::future<CommonAPI::CallStatus> sendDownloadStatusAsync(const uint32_t &_versionId, const bool &_success, const bool &_retry, const std::string &_message, SendDownloadStatusAsyncCallback _callback = nullptr, const CommonAPI::CallInfo *_info = nullptr);
+    virtual std::future<CommonAPI::CallStatus> getDownloadStatusAsync(const uint32_t &_versionId, const bool &_success, const bool &_retry, const std::string &_message, GetDownloadStatusAsyncCallback _callback = nullptr, const CommonAPI::CallInfo *_info = nullptr);
     /**
-     * Calls sendInstallationStatus with synchronous semantics.
+     * Calls getInstallationStatus with synchronous semantics.
      *
      * All const parameters are input parameters to this method.
      * The CallStatus will be filled when the method returns and indicate either
      * "SUCCESS" or which type of error has occurred. In case of an error, ONLY the CallStatus
      * will be set.
      */
-    virtual void sendInstallationStatus(uint32_t _versionId, bool _success, std::string _message, CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info = nullptr);
+    virtual void getInstallationStatus(uint32_t _versionId, bool _success, std::string _message, CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info = nullptr);
     /**
-     * Calls sendInstallationStatus with asynchronous semantics.
+     * Calls getInstallationStatus with asynchronous semantics.
      *
      * The provided callback will be called when the reply to this call arrives or
      * an error occurs during the call. The CallStatus will indicate either "SUCCESS"
@@ -134,7 +134,7 @@ public:
      * The std::future returned by this method will be fulfilled at arrival of the reply.
      * It will provide the same value for CallStatus as will be handed to the callback.
      */
-    virtual std::future<CommonAPI::CallStatus> sendInstallationStatusAsync(const uint32_t &_versionId, const bool &_success, const std::string &_message, SendInstallationStatusAsyncCallback _callback = nullptr, const CommonAPI::CallInfo *_info = nullptr);
+    virtual std::future<CommonAPI::CallStatus> getInstallationStatusAsync(const uint32_t &_versionId, const bool &_success, const std::string &_message, GetInstallationStatusAsyncCallback _callback = nullptr, const CommonAPI::CallInfo *_info = nullptr);
     /**
      * Calls requestData with synchronous semantics.
      *
@@ -189,22 +189,22 @@ std::future<CommonAPI::CallStatus> UpdaterProxy<_AttributeExtensions...>::getUpd
     return delegate_->getUpdateInfoAsync(_callback, _info);
 }
 template <typename ... _AttributeExtensions>
-void UpdaterProxy<_AttributeExtensions...>::sendDownloadStatus(uint32_t _versionId, bool _success, bool _retry, std::string _message, CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info) {
-    delegate_->sendDownloadStatus(_versionId, _success, _retry, _message, _internalCallStatus, _info);
+void UpdaterProxy<_AttributeExtensions...>::getDownloadStatus(uint32_t _versionId, bool _success, bool _retry, std::string _message, CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info) {
+    delegate_->getDownloadStatus(_versionId, _success, _retry, _message, _internalCallStatus, _info);
 }
 
 template <typename ... _AttributeExtensions>
-std::future<CommonAPI::CallStatus> UpdaterProxy<_AttributeExtensions...>::sendDownloadStatusAsync(const uint32_t &_versionId, const bool &_success, const bool &_retry, const std::string &_message, SendDownloadStatusAsyncCallback _callback, const CommonAPI::CallInfo *_info) {
-    return delegate_->sendDownloadStatusAsync(_versionId, _success, _retry, _message, _callback, _info);
+std::future<CommonAPI::CallStatus> UpdaterProxy<_AttributeExtensions...>::getDownloadStatusAsync(const uint32_t &_versionId, const bool &_success, const bool &_retry, const std::string &_message, GetDownloadStatusAsyncCallback _callback, const CommonAPI::CallInfo *_info) {
+    return delegate_->getDownloadStatusAsync(_versionId, _success, _retry, _message, _callback, _info);
 }
 template <typename ... _AttributeExtensions>
-void UpdaterProxy<_AttributeExtensions...>::sendInstallationStatus(uint32_t _versionId, bool _success, std::string _message, CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info) {
-    delegate_->sendInstallationStatus(_versionId, _success, _message, _internalCallStatus, _info);
+void UpdaterProxy<_AttributeExtensions...>::getInstallationStatus(uint32_t _versionId, bool _success, std::string _message, CommonAPI::CallStatus &_internalCallStatus, const CommonAPI::CallInfo *_info) {
+    delegate_->getInstallationStatus(_versionId, _success, _message, _internalCallStatus, _info);
 }
 
 template <typename ... _AttributeExtensions>
-std::future<CommonAPI::CallStatus> UpdaterProxy<_AttributeExtensions...>::sendInstallationStatusAsync(const uint32_t &_versionId, const bool &_success, const std::string &_message, SendInstallationStatusAsyncCallback _callback, const CommonAPI::CallInfo *_info) {
-    return delegate_->sendInstallationStatusAsync(_versionId, _success, _message, _callback, _info);
+std::future<CommonAPI::CallStatus> UpdaterProxy<_AttributeExtensions...>::getInstallationStatusAsync(const uint32_t &_versionId, const bool &_success, const std::string &_message, GetInstallationStatusAsyncCallback _callback, const CommonAPI::CallInfo *_info) {
+    return delegate_->getInstallationStatusAsync(_versionId, _success, _message, _callback, _info);
 }
 template <typename ... _AttributeExtensions>
 void UpdaterProxy<_AttributeExtensions...>::requestData(uint32_t _versionId, uint32_t _chunkIndex, CommonAPI::CallStatus &_internalCallStatus, uint32_t &_chunkIndex_, std::string &_data, bool &_lastChunk, const CommonAPI::CallInfo *_info) {

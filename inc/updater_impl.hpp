@@ -10,21 +10,21 @@ public:
 
     void getUpdateInfo(const std::shared_ptr<CommonAPI::ClientId> _client, getUpdateInfoReply_t _reply) override;
 
-    void sendDownloadStatus(
+    void getDownloadStatus(
         const std::shared_ptr<CommonAPI::ClientId> _client,
         uint32_t _versionId,
         bool _success, 
         bool _retry, 
         std::string _message, 
-        sendDownloadStatusReply_t _reply
+        getDownloadStatusReply_t _reply
     ) override;
 
-    void sendInstallationStatus(
+    void getInstallationStatus(
         const std::shared_ptr<CommonAPI::ClientId> _client, 
         uint32_t _versionId,
         bool _success, 
         std::string _message, 
-        sendInstallationStatusReply_t _reply
+        getInstallationStatusReply_t _reply
     ) override;
 
     void requestData(

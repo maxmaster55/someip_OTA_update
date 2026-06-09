@@ -62,3 +62,8 @@ target_link_libraries(ota_daemon
     ZLIB::ZLIB
     nlohmann_json::nlohmann_json
 )
+
+install(TARGETS ota_daemon ota_service
+    RUNTIME DESTINATION ${bindir}
+)
+

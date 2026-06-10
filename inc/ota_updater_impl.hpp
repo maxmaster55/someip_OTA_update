@@ -42,5 +42,5 @@ public:
 
 private:
     std::shared_ptr<UpdateManager> updateManager_;
-    static constexpr uint32_t CHUNK_SIZE = 4096;
+    static constexpr uint32_t CHUNK_SIZE = 1300;
 };

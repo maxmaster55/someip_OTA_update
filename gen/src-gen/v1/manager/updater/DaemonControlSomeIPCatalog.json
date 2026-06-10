@@ -1,0 +1,8 @@
+{
+    "manager.updater.DaemonControl" : {
+        "service_id": 6944,
+        "instances" : {
+            "manager.updater.DaemonControl": 22140
+        }
+    }
+}

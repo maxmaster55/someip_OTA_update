@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QString>
 #include <QProcess>
+#include <QTimer>
 #include <memory>
 #include <mutex>
 #include <atomic>
@@ -11,6 +12,7 @@
 #include <chrono>
 #include <CommonAPI/CommonAPI.hpp>
 #include <v1/manager/updater/UpdaterProxy.hpp>
+#include <v1/manager/updater/RelayControlProxy.hpp>
 #include "transfer_config.hpp"
 
 class DownloadManager : public QObject {
@@ -24,6 +26,10 @@ class DownloadManager : public QObject {
     Q_PROPERTY(QString fileName READ fileName NOTIFY fileNameChanged)
     Q_PROPERTY(QString selectedFilePath READ selectedFilePath WRITE setSelectedFilePath NOTIFY selectedFilePathChanged)
     Q_PROPERTY(QString versionOverride READ versionOverride WRITE setVersionOverride NOTIFY versionOverrideChanged)
+    Q_PROPERTY(QString relayState READ relayState NOTIFY relayStateChanged)
+    Q_PROPERTY(QString relayOutput READ relayOutput NOTIFY relayOutputChanged)
+    Q_PROPERTY(bool relayConnected READ relayConnected NOTIFY relayConnectedChanged)
+    Q_PROPERTY(bool serviceRunning READ serviceRunning NOTIFY serviceRunningChanged)
 
 public:
     explicit DownloadManager(QObject *parent = nullptr);
@@ -38,10 +44,19 @@ public:
     QString fileName() const { std::lock_guard<std::mutex> l(mutex_); return fileName_; }
     QString selectedFilePath() const { std::lock_guard<std::mutex> l(mutex_); return selectedFilePath_; }
     QString versionOverride() const { std::lock_guard<std::mutex> l(mutex_); return versionOverride_; }
+    QString relayState() const { std::lock_guard<std::mutex> l(mutex_); return relayState_; }
+    QString relayOutput() const { std::lock_guard<std::mutex> l(mutex_); return relayOutput_; }
+    bool relayConnected() const { std::lock_guard<std::mutex> l(mutex_); return relayConnected_; }
+    bool serviceRunning() const { std::lock_guard<std::mutex> l(mutex_); return serviceRunning_; }
 
-    Q_INVOKABLE void startServiceAndConnect();
+    Q_INVOKABLE void startService();
+    Q_INVOKABLE void stopService();
     Q_INVOKABLE void startDownload();
     Q_INVOKABLE void cancelDownload();
+    Q_INVOKABLE void connectToRelay();
+    Q_INVOKABLE void sendRelayCommand(int commandCode, int parameter = 0);
+    Q_INVOKABLE void getRelayVersion();
+    Q_INVOKABLE void installUpdate();
 
 signals:
     void progressChanged();
@@ -53,6 +68,10 @@ signals:
     void fileNameChanged();
     void selectedFilePathChanged();
     void versionOverrideChanged();
+    void relayStateChanged();
+    void relayOutputChanged();
+    void relayConnectedChanged();
+    void serviceRunningChanged();
 
 private:
     void setProgress(double v) { { std::lock_guard<std::mutex> l(mutex_); progress_ = v; } emit progressChanged(); }
@@ -64,19 +83,28 @@ private:
     void setFileName(const QString& v) { { std::lock_guard<std::mutex> l(mutex_); fileName_ = v; } emit fileNameChanged(); }
     void setSelectedFilePath(const QString& v);
     void setVersionOverride(const QString& v) { { std::lock_guard<std::mutex> l(mutex_); versionOverride_ = v; } emit versionOverrideChanged(); }
+    void setRelayState(const QString& v) { { std::lock_guard<std::mutex> l(mutex_); relayState_ = v; } emit relayStateChanged(); }
+    void setRelayOutput(const QString& v) { { std::lock_guard<std::mutex> l(mutex_); relayOutput_ = v; } emit relayOutputChanged(); }
+    void setRelayConnected(bool v) { { std::lock_guard<std::mutex> l(mutex_); relayConnected_ = v; } emit relayConnectedChanged(); }
+    void setServiceRunning(bool v) { { std::lock_guard<std::mutex> l(mutex_); serviceRunning_ = v; } emit serviceRunningChanged(); }
 
     void launchService();
     void killService();
     void connectProxy();
+    void retryConnectProxy();
     void checkForUpdate(std::function<void(bool)> onResult = nullptr);
 
     std::shared_ptr<CommonAPI::Runtime> runtime_;
     std::shared_ptr<v1::manager::updater::UpdaterProxy<>> proxy_;
+    std::shared_ptr<v1::manager::updater::RelayControlProxy<>> relayProxy_;
     QProcess* serviceProcess_ = nullptr;
+    QTimer* connectRetryTimer_ = nullptr;
+    int connectRetryCount_ = 0;
+    static constexpr int MAX_CONNECT_RETRIES = 10;
 
     mutable std::mutex mutex_;
     double progress_ = 0.0;
-    QString status_ = "Disconnected";
+    QString status_ = "Idle";
     QString speedText_ = "";
     bool connected_ = false;
     QString fileInfo_ = "";
@@ -84,6 +112,10 @@ private:
     QString fileName_ = "";
     QString selectedFilePath_;
     QString versionOverride_;
+    QString relayState_ = "Not connected";
+    QString relayOutput_ = "";
+    bool relayConnected_ = false;
+    bool serviceRunning_ = false;
 
     uint32_t lastVersionProcessed_ = 0;
     int64_t fileSize_ = 0;

@@ -1,0 +1,34 @@
+import "platform:/plugin/org.genivi.commonapi.someip/deployment/CommonAPI-SOMEIP_deployment_spec.fdepl"
+import "../fidl/daemon_control.fidl"
+
+define org.genivi.commonapi.someip.deployment for interface manager.updater.DaemonControl {
+    SomeIpServiceID = 6944
+
+    method performInstall {
+        SomeIpMethodID = 1
+        SomeIpReliable = false
+    }
+
+    method cancelInstall {
+        SomeIpMethodID = 2
+        SomeIpReliable = false
+    }
+
+    broadcast installProgress {
+        SomeIpEventID = 38009
+        SomeIpEventGroups = { 7004 }
+        SomeIpReliable = false
+    }
+}
+
+define org.genivi.commonapi.someip.deployment for provider as Service {
+    instance manager.updater.DaemonControl {
+        InstanceId = "manager.updater.DaemonControl"
+
+        SomeIpInstanceID = 22140
+
+        SomeIpUnicastAddress = "127.0.0.1"
+        SomeIpReliableUnicastPort = 30495
+        SomeIpUnreliableUnicastPort = 30496
+    }
+}

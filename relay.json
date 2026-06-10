@@ -9,21 +9,18 @@
     },
     "applications": [
         {
-            "name": "ota_service",
-            "id": "0x1"
+            "name": "ota_relay",
+            "id": "0x2323"
         }
     ],
     "services": [
         {
-            "service": "0x1b1e",
-            "instance": "0x567a",
-            "unreliable": "30500"
-        },
-        {
             "service": "0x1b1f",
-            "instance": "0x567b"
+            "instance": "0x567b",
+            "unreliable": "30498"
         }
     ],
+    "routing": "ota_relay",
     "service-discovery": {
         "enable": "true",
         "multicast": "224.244.224.245",

@@ -1,0 +1,32 @@
+package manager.updater
+
+interface DaemonControl {
+    version { major 1 minor 0 }
+
+    method performInstall {
+        in {
+            String firmwarePath
+            UInt32 versionId
+            String outputPath
+        }
+        out {
+            Boolean accepted
+            String message
+        }
+    }
+
+    method cancelInstall {
+        out {
+            Boolean accepted
+        }
+    }
+
+    broadcast installProgress {
+        out {
+            UInt32 versionId
+            UInt32 progress
+            String currentState
+            String message
+        }
+    }
+}

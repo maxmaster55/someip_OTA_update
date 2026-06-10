@@ -1,0 +1,12 @@
+{
+    "downloadPath": "/tmp/ota_downloads",
+    "decompressionPath": "/tmp/ota_extracted",
+    "checkIntervalSec": 30,
+    "autoCleanup": true,
+    "serviceDomain": "local",
+    "serviceInstance": "manager.updater.Updater",
+    "relayDomain": "local",
+    "relayInstance": "manager.updater.RelayControl",
+    "daemonDomain": "local",
+    "daemonInstance": "manager.updater.DaemonControl"
+}

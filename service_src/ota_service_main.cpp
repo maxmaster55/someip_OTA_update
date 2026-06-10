@@ -1,17 +1,13 @@
 #include <iostream>
-#include "CommonAPI/CommonAPI.hpp"
-#include "ota_updater_impl.hpp"
 #include <thread>
 #include <chrono>
+#include "CommonAPI/CommonAPI.hpp"
+#include "ota_updater_impl.hpp"
+#include <v1/manager/updater/RelayControlProxy.hpp>
 
 using namespace std::chrono_literals;
 
-
-
-
-
 int main(int argc, char** argv) {
-    // Check for update file argument
     if (argc < 2) {
         std::cerr << "Usage: " << argv[0] << " <update_file> [version_override]" << std::endl;
         std::cerr << "Example: " << argv[0] << " file_ota_update_2.5.wic.bz2" << std::endl;
@@ -24,7 +20,7 @@ int main(int argc, char** argv) {
     std::cout << "Update_Notifier is running with file: " << updateFile << std::endl;
 
     auto runtime = CommonAPI::Runtime::get();
-    
+
     if (!runtime) {
         std::cerr << "Failed to get CommonAPI Runtime instance\n";
         return 1;
@@ -35,7 +31,6 @@ int main(int argc, char** argv) {
 
     auto service = std::make_shared<updaterImpl>();
 
-    // Load the update file
     if (!service->loadUpdateFile(updateFile, versionOverride)) {
         std::cerr << "Failed to load update file: " << updateFile << std::endl;
         return 1;
@@ -48,7 +43,42 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    std::cout << "Service registered successfully. Waiting for client requests..." << std::endl;
+    std::cout << "Service registered successfully." << std::endl;
+
+    // Connect to the relay for command/control
+    std::cout << "Connecting to RelayControl service..." << std::endl;
+    std::shared_ptr<v1::manager::updater::RelayControlProxy<>> relayProxy;
+    for (int i = 0; i < 15; ++i) {
+        relayProxy = runtime->buildProxy<v1::manager::updater::RelayControlProxy>(
+            "local", "manager.updater.RelayControl");
+        if (relayProxy && relayProxy->isAvailable()) {
+            std::cout << "Connected to RelayControl service" << std::endl;
+            break;
+        }
+        std::cout << "Waiting for relay... (attempt " << (i + 1) << ")" << std::endl;
+        std::this_thread::sleep_for(2s);
+    }
+
+    if (relayProxy && relayProxy->isAvailable()) {
+        service->setRelayProxy(relayProxy);
+        std::cout << "Relay proxy set on service" << std::endl;
+
+        // Notify relay about the available update
+        CommonAPI::CallStatus callStatus;
+        bool accepted = false;
+        std::string message;
+        relayProxy->sendCommand(
+            static_cast<uint32_t>(0), // UPDATE_NOW
+            service->getVersionId(),
+            0,
+            callStatus, accepted, message);
+        std::cout << "Sent UPDATE_NOW to relay: accepted=" << accepted
+                  << ", message=" << message << std::endl;
+    } else {
+        std::cout << "Relay not available, running standalone" << std::endl;
+    }
+
+    std::cout << "Waiting for client requests..." << std::endl;
 
     while (true)
         std::this_thread::sleep_for(1s);

@@ -1,0 +1,8 @@
+{
+    "manager.updater.RelayControl" : {
+        "service_id": 6943,
+        "instances" : {
+            "manager.updater.RelayControl": 22139
+        }
+    }
+}

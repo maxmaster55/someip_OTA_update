@@ -7,9 +7,13 @@
 #include <QFileInfo>
 #include <cstring>
 #include <iostream>
+#include "command_types.hpp"
 
 DownloadManager::DownloadManager(QObject *parent)
     : QObject(parent) {
+    connectRetryTimer_ = new QTimer(this);
+    connectRetryTimer_->setInterval(2000);
+    connect(connectRetryTimer_, &QTimer::timeout, this, &DownloadManager::retryConnectProxy);
 }
 
 DownloadManager::~DownloadManager() {
@@ -22,11 +26,12 @@ void DownloadManager::setSelectedFilePath(const QString& v) {
     if (local.isEmpty()) local = v;
     { std::lock_guard<std::mutex> l(mutex_); selectedFilePath_ = local; }
     emit selectedFilePathChanged();
-    startServiceAndConnect();
 }
 
 void DownloadManager::killService() {
-    // Kill any existing ota_service binary to avoid routing conflicts
+    connectRetryTimer_->stop();
+    connectRetryCount_ = 0;
+
     QProcess killProc;
     killProc.start("pkill", {"-9", "-x", "ota_service"});
     killProc.waitForFinished(2000);
@@ -38,11 +43,33 @@ void DownloadManager::killService() {
         serviceProcess_->deleteLater();
         serviceProcess_ = nullptr;
     }
+
+    setServiceRunning(false);
+    setConnected(false);
+    setFileInfo("");
+    setStatus("Service stopped");
+}
+
+void DownloadManager::startService() {
+    if (selectedFilePath_.isEmpty()) {
+        setStatus("Select a file first");
+        return;
+    }
+    if (serviceRunning_) {
+        setStatus("Service already running");
+        return;
+    }
+    launchService();
+}
+
+void DownloadManager::stopService() {
+    killService();
 }
 
 void DownloadManager::launchService() {
-    if (selectedFilePath_.isEmpty()) {
-        setStatus("No file selected");
+    QFileInfo fi(selectedFilePath_);
+    if (!fi.exists()) {
+        setStatus("File not found: " + fi.fileName());
         return;
     }
 
@@ -55,7 +82,6 @@ void DownloadManager::launchService() {
     env.insert("VSOMEIP_APPLICATION_NAME", "ota_service");
     serviceProcess_->setProcessEnvironment(env);
     serviceProcess_->setProcessChannelMode(QProcess::ForwardedChannels);
-    serviceProcess_->setReadChannel(QProcess::StandardOutput);
 
     QStringList svcArgs = {selectedFilePath_};
     if (!versionOverride_.isEmpty())
@@ -63,22 +89,21 @@ void DownloadManager::launchService() {
     serviceProcess_->start(serviceBin, svcArgs);
 
     if (!serviceProcess_->waitForStarted(5000)) {
-        setStatus("Failed to start service");
+        setStatus("Failed to start service (binary not found?)");
         return;
     }
 
-    QFileInfo fi(selectedFilePath_);
     setFileName(fi.fileName());
+    setServiceRunning(true);
+    setStatus("Service launched - connecting via SOME/IP...");
 
-    setStatus("Service started — connecting...");
-    QTimer::singleShot(2000, this, [this]() {
+    connectRetryCount_ = 0;
+    QTimer::singleShot(1000, this, [this]() {
         connectProxy();
     });
 }
 
 void DownloadManager::connectProxy() {
-    // Use a distinct app name so the GUI proxy doesn't conflict
-    // with the ota_service child process (routing manager).
     qputenv("VSOMEIP_APPLICATION_NAME", "ota_gui_proxy");
     runtime_ = CommonAPI::Runtime::get();
     if (!runtime_) {
@@ -96,37 +121,164 @@ void DownloadManager::connectProxy() {
 
     if (proxy_->isAvailable()) {
         setConnected(true);
-        setStatus("Connected — fetching update info...");
-        checkForUpdate([this](bool ok) {
-            if (ok) startDownload();
-        });
-    } else {
+        setStatus("Service connected");
+        connectRetryTimer_->stop();
+        connectRetryCount_ = 0;
+
         proxy_->getProxyStatusEvent().subscribe(
             [this](const CommonAPI::AvailabilityStatus& av) {
                 if (av == CommonAPI::AvailabilityStatus::AVAILABLE) {
                     setConnected(true);
-                    setStatus("Connected — fetching update info...");
-                    checkForUpdate([this](bool ok) {
-                        if (ok) startDownload();
-                    });
                 } else {
                     setConnected(false);
-                    setStatus("Service unavailable");
+                    setStatus("Service disconnected");
                 }
             });
-        setStatus("Waiting for service...");
+        return;
+    }
+
+    proxy_->getProxyStatusEvent().subscribe(
+        [this](const CommonAPI::AvailabilityStatus& av) {
+            if (av == CommonAPI::AvailabilityStatus::AVAILABLE) {
+                setConnected(true);
+                setStatus("Service connected");
+                connectRetryTimer_->stop();
+                connectRetryCount_ = 0;
+            } else if (!connected_) {
+                setConnected(false);
+            }
+        });
+
+    setStatus("Waiting for service...");
+    connectRetryTimer_->start();
+}
+
+void DownloadManager::retryConnectProxy() {
+    if (!proxy_) return;
+    connectRetryCount_++;
+
+    if (proxy_->isAvailable()) {
+        setConnected(true);
+        setStatus("Service connected");
+        connectRetryTimer_->stop();
+        connectRetryCount_ = 0;
+        return;
+    }
+
+    if (connectRetryCount_ >= MAX_CONNECT_RETRIES) {
+        setStatus("Service unreachable after " + QString::number(MAX_CONNECT_RETRIES) + " attempts");
+        connectRetryTimer_->stop();
+        return;
+    }
+
+    setStatus("Connecting... (" + QString::number(connectRetryCount_) + "/" +
+              QString::number(MAX_CONNECT_RETRIES) + ")");
+}
+
+void DownloadManager::connectToRelay() {
+    if (!runtime_) {
+        qputenv("VSOMEIP_APPLICATION_NAME", "ota_gui_proxy");
+        runtime_ = CommonAPI::Runtime::get();
+        if (!runtime_) {
+            setRelayOutput("Failed to get CommonAPI runtime");
+            return;
+        }
+    }
+
+    relayProxy_ = runtime_->buildProxy<v1::manager::updater::RelayControlProxy>(
+        "local", "manager.updater.RelayControl");
+
+    if (!relayProxy_) {
+        setRelayOutput("Failed to build relay proxy");
+        return;
+    }
+
+    auto subscribeToStateEvents = [this]() {
+        relayProxy_->getStateChangedEvent().subscribe(
+            [this](const std::string& state, const uint32_t& progress,
+                   const uint32_t& versionId, const std::string& message) {
+                QString info = QString("[%1] %2% v=0x%3 — %4")
+                    .arg(QString::fromStdString(state))
+                    .arg(progress)
+                    .arg(versionId, 0, 16)
+                    .arg(QString::fromStdString(message));
+                setRelayState(info);
+                setStatus(info);
+            }
+        );
+    };
+
+    relayProxy_->getProxyStatusEvent().subscribe(
+        [this, subscribeToStateEvents](const CommonAPI::AvailabilityStatus& av) {
+            if (av == CommonAPI::AvailabilityStatus::AVAILABLE) {
+                setRelayConnected(true);
+                setRelayState("Connected");
+                subscribeToStateEvents();
+                setRelayOutput("Relay connected");
+            } else {
+                setRelayConnected(false);
+                setRelayState("Unavailable");
+            }
+        });
+
+    if (relayProxy_->isAvailable()) {
+        setRelayConnected(true);
+        setRelayState("Connected");
+        subscribeToStateEvents();
+        setRelayOutput("Relay connected");
+    } else {
+        setRelayState("Waiting...");
     }
 }
 
-void DownloadManager::startServiceAndConnect() {
-    if (downloading_) return;
-    if (connected_ && proxy_) {
-        // Already connected — just start download if not already
-        startDownload();
+void DownloadManager::sendRelayCommand(int commandCode, int parameter) {
+    if (!relayProxy_ || !relayProxy_->isAvailable()) {
+        setRelayOutput("Relay not connected");
         return;
     }
-    killService();
-    launchService();
+
+    relayProxy_->sendCommandAsync(
+        static_cast<uint32_t>(commandCode),
+        0,
+        static_cast<uint32_t>(parameter),
+        [this](const CommonAPI::CallStatus& status, const bool& accepted, const std::string& message) {
+            if (status == CommonAPI::CallStatus::SUCCESS) {
+                QString result = QString(accepted ? "Accepted: %1" : "Rejected: %1")
+                    .arg(QString::fromStdString(message));
+                setRelayOutput(result);
+                setStatus(result);
+            } else {
+                setRelayOutput("Command failed");
+                setStatus("Relay command failed");
+            }
+        }
+    );
+}
+
+void DownloadManager::getRelayVersion() {
+    if (!relayProxy_ || !relayProxy_->isAvailable()) {
+        setRelayOutput("Relay not connected");
+        return;
+    }
+
+    relayProxy_->getCurrentVersionAsync(
+        [this](const CommonAPI::CallStatus& status, const uint32_t& versionId,
+               const std::string& versionString) {
+            if (status == CommonAPI::CallStatus::SUCCESS) {
+                QString result = QString("Current version: %1 (0x%2)")
+                    .arg(QString::fromStdString(versionString))
+                    .arg(versionId, 0, 16);
+                setRelayOutput(result);
+                setStatus(result);
+            } else {
+                setRelayOutput("Failed to get version");
+            }
+        }
+    );
+}
+
+void DownloadManager::installUpdate() {
+    sendRelayCommand(5, 0);
 }
 
 void DownloadManager::checkForUpdate(std::function<void(bool)> onResult) {

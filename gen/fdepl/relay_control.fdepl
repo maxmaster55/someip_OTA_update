@@ -1,0 +1,34 @@
+import "platform:/plugin/org.genivi.commonapi.someip/deployment/CommonAPI-SOMEIP_deployment_spec.fdepl"
+import "../fidl/relay_control.fidl"
+
+define org.genivi.commonapi.someip.deployment for interface manager.updater.RelayControl {
+    SomeIpServiceID = 6943
+
+    method sendCommand {
+        SomeIpMethodID = 1
+        SomeIpReliable = false
+    }
+
+    method getCurrentVersion {
+        SomeIpMethodID = 2
+        SomeIpReliable = false
+    }
+
+    broadcast stateChanged {
+        SomeIpEventID = 38008
+        SomeIpEventGroups = { 7003 }
+        SomeIpReliable = false
+    }
+}
+
+define org.genivi.commonapi.someip.deployment for provider as Service {
+    instance manager.updater.RelayControl {
+        InstanceId = "manager.updater.RelayControl"
+
+        SomeIpInstanceID = 22139
+
+        SomeIpUnicastAddress = "127.0.0.1"
+        SomeIpReliableUnicastPort = 30497
+        SomeIpUnreliableUnicastPort = 30498
+    }
+}

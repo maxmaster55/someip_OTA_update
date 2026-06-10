@@ -61,14 +61,27 @@ void updaterImpl::requestData(
     (void)_client;
     (void)_versionId;
     
-    const auto& metadata = updateManager_->getMetadata();
+    if (!transferStarted_.exchange(true)) {
+        transferStartTime_ = std::chrono::steady_clock::now();
+        
+        const auto& metadata = updateManager_->getMetadata();
+        uint32_t totalChunks = (metadata.fileSize + CHUNK_SIZE - 1) / CHUNK_SIZE;
+        std::cout << "Serving " << metadata.fileSize << " bytes in "
+                  << totalChunks << " chunks"
+                  << std::endl;
+    }
     
-    // Get chunk from the update file
     std::string chunkData = updateManager_->getChunk(_chunkIndex, CHUNK_SIZE);
     bool isLastChunk = !updateManager_->hasMoreChunks(_chunkIndex, CHUNK_SIZE);
     
-    std::cout << "Requested chunk " << _chunkIndex << " - Size: " << chunkData.size() 
-              << " bytes, Last: " << (isLastChunk ? "yes" : "no") << std::endl;
+    if (isLastChunk) {
+        auto t1 = std::chrono::steady_clock::now();
+        double elapsed = std::chrono::duration<double>(t1 - transferStartTime_).count();
+        double speedMbps = (updateManager_->getMetadata().fileSize * 8.0 / 1'000'000.0) / elapsed;
+        std::cout << "Transfer done in " << elapsed << " s, " << speedMbps << " Mbps ("
+                  << (updateManager_->getMetadata().fileSize / 1'048'576.0 / elapsed) << " MB/s)"
+                  << std::endl;
+    }
     
     _reply(_chunkIndex, chunkData, isLastChunk);
 }

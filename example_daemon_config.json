@@ -1,7 +1,6 @@
 {
     "downloadPath": "/tmp/ota_downloads",
     "decompressionPath": "/tmp/ota_extracted",
-    "chunkSize": 4096,
     "checkIntervalSec": 30,
     "autoDecompress": true,
     "autoCleanup": true,

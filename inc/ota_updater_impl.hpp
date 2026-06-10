@@ -2,6 +2,9 @@
 
 #include <v1/manager/updater/UpdaterStubDefault.hpp>
 #include <memory>
+#include <chrono>
+#include <atomic>
+#include "transfer_config.hpp"
 #include "file_manager.hpp"
 
 class updaterImpl : public v1::manager::updater::UpdaterStubDefault {
@@ -42,5 +45,8 @@ public:
 
 private:
     std::shared_ptr<UpdateManager> updateManager_;
-    static constexpr uint32_t CHUNK_SIZE = 1300;
+    static constexpr uint32_t CHUNK_SIZE = ::CHUNK_SIZE;
+
+    std::chrono::steady_clock::time_point transferStartTime_;
+    std::atomic<bool> transferStarted_{false};
 };

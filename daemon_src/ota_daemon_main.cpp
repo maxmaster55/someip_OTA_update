@@ -5,9 +5,14 @@
 #include <chrono>
 #include <fstream>
 #include <sstream>
+#include <cstring>
+#include <mutex>
+#include <condition_variable>
+#include <atomic>
 #include <openssl/md5.h>
 #include <filesystem>
 #include <map>
+#include "transfer_config.hpp"
 #include "config_manager.hpp"
 #include "file_decompressor.hpp"
 
@@ -67,12 +72,9 @@ bool UpdateDaemon::connect() {
         }
 
             std::cout << "[" << std::chrono::system_clock::now().time_since_epoch().count() << "] "
-                      << "Waiting for service... (attempt " << (i + 1) << "/5)" << std::endl;
+                      << "Waiting for service... (attempt " << (i + 1) << ")" << std::endl;
             std::this_thread::sleep_for(2s);
     }
-
-    std::cerr << "Failed to connect to Update_Notifier service" << std::endl;
-    return false;
 }
 
 bool UpdateDaemon::downloadUpdate(uint32_t versionId, const std::string& filename) {
@@ -95,41 +97,93 @@ bool UpdateDaemon::downloadUpdate(uint32_t versionId, const std::string& filenam
     }
 
     std::cout << "[DOWNLOAD] Update info: Size=" << fileSize << ", MD5=" << md5Hash 
-              << ", Compressed=" << (isCompressed ? "yes" : "no") << std::endl;
+              << ", Compressed=" << (isCompressed ? "yes" : "no") 
+              << ", Window=" << WINDOW_SIZE << ", ChunkSize=" << CHUNK_SIZE << std::endl;
 
-    // Download file in chunks
-    std::vector<uint8_t> downloadedData;
-    uint32_t chunkIndex = 0;
+    // Pre-allocate download buffer
+    std::vector<uint8_t> downloadedData(static_cast<size_t>(fileSize));
 
-    while (true) {
-        uint32_t recvChunkIndex = 0;
-        std::string chunkData = "";
-        bool lastChunk = false;
-
-        proxy_->requestData(versionId, chunkIndex, callStatus, recvChunkIndex, chunkData, lastChunk);
-
-        if (callStatus != CommonAPI::CallStatus::SUCCESS) {
-            std::cerr << "[ERROR] Failed to request chunk " << chunkIndex << std::endl;
-            proxy_->getDownloadStatus(versionId, false, true, "Failed to download chunk", callStatus);
-            return false;
-        }
-
-        downloadedData.insert(downloadedData.end(), chunkData.begin(), chunkData.end());
-
-        std::cout << "[DOWNLOAD] Chunk " << chunkIndex << ": " << chunkData.size() << " bytes" << std::endl;
-
-        if (lastChunk) {
-            std::cout << "[DOWNLOAD] Download complete!" << std::endl;
-            break;
-        }
-
-        chunkIndex++;
+    uint32_t totalChunks = (static_cast<uint32_t>(fileSize) + CHUNK_SIZE - 1) / CHUNK_SIZE;
+    if (totalChunks == 0) {
+        std::cout << "[DOWNLOAD] Empty file, nothing to download" << std::endl;
+        return true;
     }
+
+    // Sliding window state
+    std::mutex mtx;
+    std::condition_variable cv;
+    uint32_t nextToSend = 0;
+    uint32_t outstanding = 0;
+    uint32_t chunksReceived = 0;
+    bool failed = false;
+
+    auto callback = [&](const CommonAPI::CallStatus& status, const uint32_t& recvIdx,
+                        const std::string& data, const bool& lastChunk) {
+        std::lock_guard<std::mutex> lock(mtx);
+        if (status != CommonAPI::CallStatus::SUCCESS) {
+            std::cerr << "[ERROR] Failed to download chunk " << recvIdx << std::endl;
+            failed = true;
+        } else {
+            size_t offset = static_cast<size_t>(recvIdx) * CHUNK_SIZE;
+            if (offset + data.size() <= downloadedData.size()) {
+                std::memcpy(&downloadedData[offset], data.data(), data.size());
+            }
+            chunksReceived++;
+        }
+        outstanding--;
+        cv.notify_one();
+    };
+
+    auto t0 = std::chrono::steady_clock::now();
+
+    // Seed initial window
+    {
+        std::unique_lock<std::mutex> lock(mtx);
+        while (nextToSend < totalChunks && outstanding < WINDOW_SIZE) {
+            uint32_t idx = nextToSend++;
+            outstanding++;
+            lock.unlock();
+            proxy_->requestDataAsync(versionId, idx, callback);
+            lock.lock();
+        }
+    }
+
+    std::cout << "[DOWNLOAD] Downloading " << totalChunks << " chunks with window " << WINDOW_SIZE << "..." << std::endl;
+
+    // Wait for completion and refill window
+    {
+        std::unique_lock<std::mutex> lock(mtx);
+        while (chunksReceived < totalChunks && !failed) {
+            cv.wait(lock);
+            while (nextToSend < totalChunks && outstanding < WINDOW_SIZE && !failed) {
+                uint32_t idx = nextToSend++;
+                outstanding++;
+                lock.unlock();
+                proxy_->requestDataAsync(versionId, idx, callback);
+                lock.lock();
+            }
+        }
+    }
+
+    if (failed) {
+        std::cerr << "[ERROR] Download failed after " << chunksReceived << "/" << totalChunks << " chunks" << std::endl;
+        proxy_->getDownloadStatus(versionId, false, true, "Download failed", callStatus);
+        return false;
+    }
+
+    auto t1 = std::chrono::steady_clock::now();
+    double elapsed = std::chrono::duration<double>(t1 - t0).count();
+    double speedMbps = (downloadedData.size() * 8.0 / 1'000'000.0) / elapsed;
+
+    std::cout << "[DOWNLOAD] All " << totalChunks << " chunks received (" 
+              << downloadedData.size() << " bytes)" << std::endl;
+    std::cout << "[DOWNLOAD] Time: " << elapsed << " s, Speed: " << speedMbps << " Mbps ("
+              << (downloadedData.size() / 1'048'576.0 / elapsed) << " MB/s)" << std::endl;
 
     // Verify checksum
     std::string downloadedMD5 = calculateMD5(downloadedData);
     bool checksumMatch = (downloadedMD5 == md5Hash);
-    bool sizeMatch = (downloadedData.size() == fileSize);
+    bool sizeMatch = (downloadedData.size() == static_cast<size_t>(fileSize));
 
     std::cout << "[VERIFY] Downloaded MD5: " << downloadedMD5 << std::endl;
     std::cout << "[VERIFY] Expected MD5:   " << md5Hash << std::endl;

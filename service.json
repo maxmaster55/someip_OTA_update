@@ -1,5 +1,8 @@
 {
     "unicast": "192.168.2.1",
+    "io-threads": 4,
+    "udp-receive-buffer-size": 1048576,
+    "udp-send-buffer-size": 1048576,
     "logging": {
         "level": "debug",
         "console": "true"

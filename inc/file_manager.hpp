@@ -26,7 +26,8 @@ public:
     static bool parseVersionFromFilename(const std::string& filename, double& version);
 
     // Load update file and generate metadata
-    bool loadUpdateFile(const std::string& filename);
+    // versionOverride: if set and filename has no parsed version, use this instead
+    bool loadUpdateFile(const std::string& filename, const std::string& versionOverride = "");
 
     // Get current update metadata
     const UpdateMetadata& getMetadata() const { return metadata_; }

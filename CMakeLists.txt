@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10.0)
+cmake_minimum_required(VERSION 3.16)
 project(OTA_UpdateSystem VERSION 0.1.0 LANGUAGES C CXX)
 
 find_package(CommonAPI REQUIRED)
@@ -63,7 +63,43 @@ target_link_libraries(ota_daemon
     nlohmann_json::nlohmann_json
 )
 
-install(TARGETS ota_daemon ota_service
+# OTA GUI - Graphical interface for update management
+find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2)
+qt_standard_project_setup(REQUIRES 6.8)
+
+set(GUI_GENERATED_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/gen/src-gen/v1/manager/updater/UpdaterSomeIPProxy.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/gen/src-gen/v1/manager/updater/UpdaterSomeIPDeployment.cpp
+)
+
+qt_add_executable(ota_gui
+    gui_src/main.cpp
+    gui_src/download_manager.cpp
+    ${GUI_GENERATED_SOURCES}
+)
+
+qt_add_qml_module(ota_gui
+    URI OtaGui
+    QML_FILES
+        qml/Main.qml
+)
+
+target_include_directories(ota_gui PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/gen/src-gen
+    inc
+)
+
+target_link_libraries(ota_gui
+    PRIVATE Qt6::Quick
+    PRIVATE Qt6::QuickControls2
+    PRIVATE vsomeip3
+    PRIVATE vsomeip3-sd
+    PRIVATE CommonAPI
+    PRIVATE CommonAPI-SomeIP
+    PRIVATE OpenSSL::Crypto
+)
+
+install(TARGETS ota_daemon ota_service ota_gui
     RUNTIME DESTINATION ${bindir}
 )
 

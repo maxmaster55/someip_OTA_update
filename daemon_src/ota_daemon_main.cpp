@@ -5,6 +5,7 @@
 #include <chrono>
 #include <fstream>
 #include <sstream>
+#include <iomanip>
 #include <cstring>
 #include <mutex>
 #include <condition_variable>
@@ -40,18 +41,21 @@ private:
     void processUpdate(uint32_t versionId, const std::string& filename);
 };
 
+static std::string md5DigestString(const unsigned char* digest) {
+    std::stringstream ss;
+    for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
+        ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(digest[i]);
+    }
+    return ss.str();
+}
+
 std::string UpdateDaemon::calculateMD5(const std::vector<uint8_t>& data) {
     unsigned char digest[MD5_DIGEST_LENGTH];
     MD5_CTX md5Context;
     MD5_Init(&md5Context);
     MD5_Update(&md5Context, data.data(), data.size());
     MD5_Final(digest, &md5Context);
-
-    std::stringstream ss;
-    for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
-        ss << std::hex << static_cast<int>(digest[i]);
-    }
-    return ss.str();
+    return md5DigestString(digest);
 }
 
 bool UpdateDaemon::connect() {
@@ -100,14 +104,26 @@ bool UpdateDaemon::downloadUpdate(uint32_t versionId, const std::string& filenam
               << ", Compressed=" << (isCompressed ? "yes" : "no") 
               << ", Window=" << WINDOW_SIZE << ", ChunkSize=" << CHUNK_SIZE << std::endl;
 
-    // Pre-allocate download buffer
-    std::vector<uint8_t> downloadedData(static_cast<size_t>(fileSize));
-
     uint32_t totalChunks = (static_cast<uint32_t>(fileSize) + CHUNK_SIZE - 1) / CHUNK_SIZE;
     if (totalChunks == 0) {
         std::cout << "[DOWNLOAD] Empty file, nothing to download" << std::endl;
         return true;
     }
+
+    // Open output file and pre-allocate
+    std::string filePath = config_.downloadPath + "/" + filename;
+    std::ofstream outFile(filePath, std::ios::binary);
+    if (!outFile) {
+        std::cerr << "[ERROR] Cannot create output file: " << filePath << std::endl;
+        return false;
+    }
+    outFile.seekp(static_cast<std::streamoff>(fileSize - 1));
+    outFile.write("", 1);
+    outFile.seekp(0);
+
+    // Streaming MD5 context
+    MD5_CTX md5Context;
+    MD5_Init(&md5Context);
 
     // Sliding window state
     std::mutex mtx;
@@ -125,9 +141,9 @@ bool UpdateDaemon::downloadUpdate(uint32_t versionId, const std::string& filenam
             failed = true;
         } else {
             size_t offset = static_cast<size_t>(recvIdx) * CHUNK_SIZE;
-            if (offset + data.size() <= downloadedData.size()) {
-                std::memcpy(&downloadedData[offset], data.data(), data.size());
-            }
+            outFile.seekp(offset);
+            outFile.write(data.data(), static_cast<std::streamsize>(data.size()));
+            MD5_Update(&md5Context, data.data(), data.size());
             chunksReceived++;
         }
         outstanding--;
@@ -165,25 +181,28 @@ bool UpdateDaemon::downloadUpdate(uint32_t versionId, const std::string& filenam
         }
     }
 
+    outFile.close();
+
     if (failed) {
         std::cerr << "[ERROR] Download failed after " << chunksReceived << "/" << totalChunks << " chunks" << std::endl;
+        std::filesystem::remove(filePath);
         proxy_->getDownloadStatus(versionId, false, true, "Download failed", callStatus);
         return false;
     }
 
     auto t1 = std::chrono::steady_clock::now();
     double elapsed = std::chrono::duration<double>(t1 - t0).count();
-    double speedMbps = (downloadedData.size() * 8.0 / 1'000'000.0) / elapsed;
 
-    std::cout << "[DOWNLOAD] All " << totalChunks << " chunks received (" 
-              << downloadedData.size() << " bytes)" << std::endl;
-    std::cout << "[DOWNLOAD] Time: " << elapsed << " s, Speed: " << speedMbps << " Mbps ("
-              << (downloadedData.size() / 1'048'576.0 / elapsed) << " MB/s)" << std::endl;
+    std::cout << "[DOWNLOAD] All " << totalChunks << " chunks received (" << fileSize << " bytes)" << std::endl;
+    std::cout << "[DOWNLOAD] Time: " << elapsed << " s, Speed: "
+              << (fileSize / 1'048'576.0 / elapsed) << " MB/s" << std::endl;
 
     // Verify checksum
-    std::string downloadedMD5 = calculateMD5(downloadedData);
+    unsigned char digest[MD5_DIGEST_LENGTH];
+    MD5_Final(digest, &md5Context);
+    std::string downloadedMD5 = md5DigestString(digest);
     bool checksumMatch = (downloadedMD5 == md5Hash);
-    bool sizeMatch = (downloadedData.size() == static_cast<size_t>(fileSize));
+    bool sizeMatch = (static_cast<int64_t>(std::filesystem::file_size(filePath)) == fileSize);
 
     std::cout << "[VERIFY] Downloaded MD5: " << downloadedMD5 << std::endl;
     std::cout << "[VERIFY] Expected MD5:   " << md5Hash << std::endl;
@@ -191,15 +210,10 @@ bool UpdateDaemon::downloadUpdate(uint32_t versionId, const std::string& filenam
 
     if (!checksumMatch || !sizeMatch) {
         std::cerr << "[ERROR] Checksum or size verification failed!" << std::endl;
+        std::filesystem::remove(filePath);
         proxy_->getDownloadStatus(versionId, false, true, "Verification failed", callStatus);
         return false;
     }
-
-    // Save file
-    std::string filePath = config_.downloadPath + "/" + filename;
-    std::ofstream outFile(filePath, std::ios::binary);
-    outFile.write(reinterpret_cast<const char*>(downloadedData.data()), downloadedData.size());
-    outFile.close();
 
     std::cout << "[SUCCESS] File saved to: " << filePath << std::endl;
 

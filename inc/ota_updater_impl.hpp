@@ -39,8 +39,8 @@ public:
     ) override;
 
     // Load update file for OTA delivery
-    bool loadUpdateFile(const std::string& filename) {
-        return updateManager_->loadUpdateFile(filename);
+    bool loadUpdateFile(const std::string& filename, const std::string& versionOverride = "") {
+        return updateManager_->loadUpdateFile(filename, versionOverride);
     }
 
 private:

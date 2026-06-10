@@ -1,6 +1,7 @@
 #include "file_manager.hpp"
 #include <iostream>
 #include <sstream>
+#include <iomanip>
 #include <cmath>
 #include <algorithm>
 
@@ -76,18 +77,27 @@ std::string UpdateManager::calculateMD5(const std::string& filepath) {
 
     std::stringstream ss;
     for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
-        ss << std::hex << static_cast<int>(digest[i]);
+        ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(digest[i]);
     }
     return ss.str();
 }
 
-bool UpdateManager::loadUpdateFile(const std::string& filename) {
+bool UpdateManager::loadUpdateFile(const std::string& filename, const std::string& versionOverride) {
     try {
-        // Parse version from filename
+        // Parse version from filename; fall back to override
         double version = 0.0;
         if (!parseVersionFromFilename(filename, version)) {
-            std::cerr << "Failed to parse version from filename: " << filename << std::endl;
-            return false;
+            if (versionOverride.empty()) {
+                std::cerr << "Failed to parse version from filename: " << filename << std::endl;
+                return false;
+            }
+            try {
+                version = std::stod(versionOverride);
+            } catch (...) {
+                std::cerr << "Invalid version override: " << versionOverride << std::endl;
+                return false;
+            }
+            std::cout << "Using version override: " << version << std::endl;
         }
 
         // Use absolute path if provided, otherwise prepend basePath

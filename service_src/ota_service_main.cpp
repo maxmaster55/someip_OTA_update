@@ -13,12 +13,14 @@ using namespace std::chrono_literals;
 int main(int argc, char** argv) {
     // Check for update file argument
     if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <update_file>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <update_file> [version_override]" << std::endl;
         std::cerr << "Example: " << argv[0] << " file_ota_update_2.5.wic.bz2" << std::endl;
+        std::cerr << "         " << argv[0] << " custom_firmware.bin 3.1" << std::endl;
         return 1;
     }
 
     std::string updateFile = argv[1];
+    std::string versionOverride = (argc >= 3) ? argv[2] : "";
     std::cout << "Update_Notifier is running with file: " << updateFile << std::endl;
 
     auto runtime = CommonAPI::Runtime::get();
@@ -34,7 +36,7 @@ int main(int argc, char** argv) {
     auto service = std::make_shared<updaterImpl>();
 
     // Load the update file
-    if (!service->loadUpdateFile(updateFile)) {
+    if (!service->loadUpdateFile(updateFile, versionOverride)) {
         std::cerr << "Failed to load update file: " << updateFile << std::endl;
         return 1;
     }

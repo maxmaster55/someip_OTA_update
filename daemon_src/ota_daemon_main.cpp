@@ -56,7 +56,7 @@ bool UpdateDaemon::connect() {
         return false;
     }
 
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0;; ++i) {
         proxy_ = runtime->buildProxy<v1::manager::updater::UpdaterProxy>(
             config_.serviceDomain, config_.serviceInstance);
 
@@ -66,11 +66,9 @@ bool UpdateDaemon::connect() {
             return true;
         }
 
-        if (i < 4) {
             std::cout << "[" << std::chrono::system_clock::now().time_since_epoch().count() << "] "
                       << "Waiting for service... (attempt " << (i + 1) << "/5)" << std::endl;
             std::this_thread::sleep_for(2s);
-        }
     }
 
     std::cerr << "Failed to connect to Update_Notifier service" << std::endl;

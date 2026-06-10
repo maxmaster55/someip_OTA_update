@@ -19,7 +19,7 @@ public:
         bool isCompressed;
     };
 
-    UpdateManager(const std::string& basePath = "/tmp");
+    UpdateManager(const std::string& basePath = ".");
     ~UpdateManager() = default;
 
     // Parse version from filename like "file_ota_update_2.5.wic.bz2"

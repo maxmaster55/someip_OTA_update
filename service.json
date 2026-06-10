@@ -1,0 +1,26 @@
+{
+    "unicast": "192.168.2.1",
+    "logging": {
+        "level": "debug",
+        "console": "true"
+    },
+    "applications": [
+        {
+            "name": "ota_service",
+            "id": "0x1"
+        }
+    ],
+    "services": [
+        {
+            "service": "6942",
+            "instance": "0x01",
+            "unreliable": "30500"
+        }
+    ],
+    "routing": "ota_service",
+    "service-discovery": {
+        "enable": "true",
+        "multicast": "224.0.0.0",
+        "port": "30490"
+    }
+}

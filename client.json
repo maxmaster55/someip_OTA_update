@@ -1,0 +1,24 @@
+{
+    "unicast" : "192.168.2.2",
+    "logging" :
+    {
+        "level" : "debug",
+        "console" : "true",
+        "file" : { "enable" : "false", "path" : "/var/log/vsomeip.log" },
+        "dlt" : "false"
+    },
+    "applications" : 
+    [
+        {
+            "name" : "ota_daemon",
+            "id" : "0x1313"
+        } 
+    ],
+    "routing" : "ota_daemon",
+    "service-discovery" :
+    {
+        "enable" : "true",
+        "multicast" : "224.0.0.0",
+        "port" : "30490"
+    }
+}

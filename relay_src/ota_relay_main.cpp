@@ -56,7 +56,7 @@ private:
     std::shared_ptr<RelayControlImpl> relayControlStub_;
     bool relayServiceRegistered_ = false;
 
-    void setState(relay::RelayState newState, uint32_t versionId, const std::string& message);
+    void setState(relay::RelayState newState, uint32_t versionId, const std::string& message, uint32_t progress = 0);
     bool handleCommand(uint32_t commandCode, uint32_t versionId, uint32_t parameter, std::string& outMessage);
     void handleVersionQuery(uint32_t& versionId, std::string& versionString);
 
@@ -106,6 +106,7 @@ bool OtaRelay::loadConfigFromFile(const std::string& configPath) {
 
         std::cout << "[Relay] Config loaded:" << std::endl;
         std::cout << "  downloadPath: " << config_.downloadPath << std::endl;
+        std::cout << "  decompressionPath: " << config_.decompressionPath << std::endl;
         std::cout << "  checkInterval: " << config_.checkIntervalSec << "s" << std::endl;
         return true;
     } catch (const std::exception& e) {
@@ -165,21 +166,11 @@ bool OtaRelay::init() {
     return true;
 }
 
-void OtaRelay::setState(relay::RelayState newState, uint32_t versionId, const std::string& message) {
+void OtaRelay::setState(relay::RelayState newState, uint32_t versionId,
+                         const std::string& message, uint32_t progress) {
     {
         std::lock_guard<std::mutex> lock(stateMutex_);
         currentState_ = newState;
-    }
-
-    uint32_t progress = 0;
-    switch (newState) {
-        case relay::RelayState::IDLE: progress = 0; break;
-        case relay::RelayState::DOWNLOADING: progress = 0; break;
-        case relay::RelayState::SCHEDULED: progress = 0; break;
-        case relay::RelayState::READY: progress = 100; break;
-        case relay::RelayState::INSTALLING: progress = 0; break;
-        case relay::RelayState::COMPLETE: progress = 100; break;
-        case relay::RelayState::ERROR: progress = 0; break;
     }
 
     if (relayControlStub_) {
@@ -188,7 +179,7 @@ void OtaRelay::setState(relay::RelayState newState, uint32_t versionId, const st
     }
 
     std::cout << "[Relay] State: " << relay::relayStateToString(newState)
-              << " | " << message << std::endl;
+              << " (" << progress << "%) | " << message << std::endl;
 }
 
 bool OtaRelay::handleCommand(uint32_t commandCode, uint32_t versionId,
@@ -291,8 +282,8 @@ bool OtaRelay::doDownload(uint32_t versionId) {
 
     bool downloaded = downloadClient_.downloadUpdate(
         versionId, config_.downloadPath,
-        [this, versionId](uint32_t vid, uint32_t progress, const std::string& status) {
-            setState(relay::RelayState::DOWNLOADING, vid, "Downloading... " + std::to_string(progress) + "%");
+        [this, versionId](uint32_t vid, uint32_t pct, const std::string& status) {
+            setState(relay::RelayState::DOWNLOADING, vid, "Downloading... " + std::to_string(pct) + "%", pct);
         },
         [this, versionId](bool success, const std::string& filePath, const std::string& message) {
             if (success) {
@@ -308,7 +299,7 @@ bool OtaRelay::doDownload(uint32_t versionId) {
         return false;
     }
 
-    setState(relay::RelayState::READY, versionId, "Download complete, ready to install");
+    setState(relay::RelayState::READY, versionId, "Download complete, ready to install", 100);
     return true;
 }
 
@@ -396,12 +387,12 @@ void OtaRelay::onDaemonProgress(uint32_t versionId, uint32_t progress,
         downloadedVersionId_ = 0;
         pendingVersionId_ = 0;
         pendingFilePath_.clear();
-        setState(relay::RelayState::COMPLETE, versionId, "Install complete: " + message);
+        setState(relay::RelayState::COMPLETE, versionId, "Install complete: " + message, 100);
         setState(relay::RelayState::IDLE, versionId, "Ready");
     } else if (state == "failed" || state == "error") {
-        setState(relay::RelayState::ERROR, versionId, "Install failed: " + message);
+        setState(relay::RelayState::ERROR, versionId, "Install failed: " + message, progress);
     } else {
-        setState(relay::RelayState::INSTALLING, versionId, message);
+        setState(relay::RelayState::INSTALLING, versionId, message, progress);
     }
 }
 
@@ -438,10 +429,10 @@ void OtaRelay::checkAndDownloadUpdates() {
 
     bool downloaded = downloadClient_.downloadUpdate(
         versionId, config_.downloadPath,
-        [this, versionId](uint32_t vid, uint32_t progress, const std::string& status) {
+        [this, versionId](uint32_t vid, uint32_t pct, const std::string& status) {
             if (vid == versionId) {
                 setState(relay::RelayState::DOWNLOADING, vid,
-                         "Downloading... " + std::to_string(progress) + "%");
+                         "Downloading... " + std::to_string(pct) + "%", pct);
             }
         },
         [this, versionId](bool success, const std::string& filePath, const std::string& message) {
@@ -450,10 +441,10 @@ void OtaRelay::checkAndDownloadUpdates() {
                 pendingFilePath_ = filePath;
                 downloadedVersionId_ = versionId;
                 setState(relay::RelayState::READY, versionId,
-                         "Download complete. Click 'Install' to decompress.");
+                         "Download complete. Click 'Install' to decompress.", 100);
             } else {
                 setState(relay::RelayState::ERROR, versionId,
-                         "Download failed: " + message);
+                         "Download failed: " + message, 0);
             }
         }
     );
@@ -511,7 +502,6 @@ int main(int argc, char** argv) {
     }
 
     std::cout << "\n=== OTA Relay Running (manual mode) ===" << std::endl;
-    std::cout << "Download Path: " << config.downloadPath << std::endl;
     std::cout << "Use Download button to fetch, Install button to deploy" << std::endl;
     std::cout << "==========================================\n" << std::endl;
 

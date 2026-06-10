@@ -203,6 +203,7 @@ void DownloadManager::connectToRelay() {
                     .arg(versionId, 0, 16)
                     .arg(QString::fromStdString(message));
                 setRelayState(info);
+                setRelayProgress(static_cast<double>(progress) / 100.0);
                 setStatus(info);
             }
         );

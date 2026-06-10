@@ -1,6 +1,6 @@
 {
-    "downloadPath": "/tmp/ota_downloads",
-    "decompressionPath": "/tmp/ota_extracted",
+    "downloadPath": "/tmp/ota_relay_downloads",
+    "decompressionPath": "/tmp/ota_relay_extracted",
     "checkIntervalSec": 30,
     "autoCleanup": true,
     "serviceDomain": "local",

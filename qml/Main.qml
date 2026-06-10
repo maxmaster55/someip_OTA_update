@@ -76,16 +76,16 @@ ApplicationWindow {
             spacing: 16
 
             // ════════════════════════════════════════════════════
-            // Section: File & Service
+            // Section: Service - file + status merged
             // ════════════════════════════════════════════════════
             GroupBox {
                 Layout.fillWidth: true
-                title: "1. Select Firmware File"
+                title: "1. Service"
                 Material.elevation: 1
 
                 ColumnLayout {
                     anchors.fill: parent
-                    spacing: 10
+                    spacing: 8
 
                     RowLayout {
                         Layout.fillWidth: true
@@ -124,14 +124,13 @@ ApplicationWindow {
                         spacing: 8
 
                         Label {
-                            text: "Version:"
+                            text: "Ver:"
                             color: Material.color(Material.Grey)
                             Layout.alignment: Qt.AlignVCenter
                         }
 
                         TextField {
-                            id: versionField
-                            Layout.preferredWidth: 100
+                            Layout.preferredWidth: 80
                             placeholderText: "Auto"
                             leftPadding: 8
                             verticalAlignment: TextInput.AlignVCenter
@@ -144,19 +143,36 @@ ApplicationWindow {
                             onTextChanged: manager.versionOverride = text.trim()
                         }
 
+                        Rectangle {
+                            width: 8; height: 8; radius: 4
+                            color: manager.serviceRunning ? "#4ade80" : "#9ca3af"
+                            Layout.alignment: Qt.AlignVCenter
+                        }
                         Label {
-                            text: "(optional)"
-                            color: Material.color(Material.Grey)
+                            text: "Svc"
                             font.pixelSize: 11
+                            color: manager.serviceRunning ? "#4ade80" : "#9ca3af"
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+
+                        Rectangle {
+                            width: 8; height: 8; radius: 4
+                            color: manager.connected ? "#4ade80" : (manager.serviceRunning ? "#f59e0b" : "#9ca3af")
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+                        Label {
+                            text: manager.connected ? "IP" : (manager.serviceRunning ? "..." : "N/A")
+                            font.pixelSize: 11
+                            color: manager.connected ? "#4ade80" : (manager.serviceRunning ? "#f59e0b" : "#9ca3af")
                             Layout.alignment: Qt.AlignVCenter
                         }
 
                         Item { Layout.fillWidth: true }
 
                         Button {
-                            text: manager.serviceRunning ? "Stop Service" : "Launch Service"
+                            text: manager.serviceRunning ? "Stop" : "Launch"
                             enabled: manager.selectedFilePath.length > 0
-                            implicitHeight: 32
+                            implicitHeight: 30
                             Material.background: manager.serviceRunning ? Material.Red : Material.Green
                             Material.foreground: "white"
                             onClicked: {
@@ -165,71 +181,6 @@ ApplicationWindow {
                                 else
                                     manager.startService()
                             }
-                        }
-                    }
-                }
-            }
-
-            // ════════════════════════════════════════════════════
-            // Section: Service Status & Direct Download
-            // ════════════════════════════════════════════════════
-            GroupBox {
-                Layout.fillWidth: true
-                title: "2. Service Status"
-                Material.elevation: 1
-                visible: manager.serviceRunning || manager.connected || manager.downloading
-
-                ColumnLayout {
-                    anchors.fill: parent
-                    spacing: 8
-
-                    GridLayout {
-                        Layout.fillWidth: true
-                        columns: 2
-                        rowSpacing: 4
-                        columnSpacing: 12
-
-                        Label { text: "Process:"; color: Material.color(Material.Grey); font.pixelSize: 12 }
-                        RowLayout {
-                            spacing: 6
-                            Rectangle {
-                                width: 8; height: 8; radius: 4
-                                color: manager.serviceRunning ? "#4ade80" : "#9ca3af"
-                                Layout.alignment: Qt.AlignVCenter
-                            }
-                            Label {
-                                text: manager.serviceRunning ? "Running" : "Stopped"
-                                font.pixelSize: 12; font.weight: Font.Bold
-                                color: manager.serviceRunning ? "#4ade80" : "#9ca3af"
-                            }
-                        }
-
-                        Label { text: "SOME/IP:"; color: Material.color(Material.Grey); font.pixelSize: 12 }
-                        RowLayout {
-                            spacing: 6
-                            Rectangle {
-                                width: 8; height: 8; radius: 4
-                                color: manager.connected ? "#4ade80" : (manager.serviceRunning ? "#f59e0b" : "#9ca3af")
-                                Layout.alignment: Qt.AlignVCenter
-                            }
-                            Label {
-                                text: manager.connected ? "Connected" :
-                                      manager.serviceRunning ? "Connecting..." : "N/A"
-                                font.pixelSize: 12; font.weight: Font.Bold
-                                color: manager.connected ? "#4ade80" : (manager.serviceRunning ? "#f59e0b" : "#9ca3af")
-                            }
-                        }
-
-                        Label {
-                            text: "File:"
-                            color: Material.color(Material.Grey); font.pixelSize: 12
-                            visible: manager.fileName.length > 0
-                        }
-                        Label {
-                            text: manager.fileName
-                            font.pixelSize: 12
-                            visible: manager.fileName.length > 0
-                            elide: Text.ElideRight
                         }
                     }
 
@@ -241,92 +192,22 @@ ApplicationWindow {
                         wrapMode: Text.WordWrap
                         visible: manager.fileInfo.length > 0
                     }
-
-                    // Direct download button (legacy)
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 8
-                        visible: manager.connected
-
-                        Button {
-                            text: manager.downloading ? "Cancel Download" : "Download Direct"
-                            implicitHeight: 36
-                            Layout.fillWidth: true
-                            Material.background: manager.downloading ? Material.Red : Material.accent
-                            Material.foreground: "white"
-                            onClicked: {
-                                if (manager.downloading)
-                                    manager.cancelDownload()
-                                else
-                                    manager.startDownload()
-                            }
-                        }
-                    }
-
-                    // Direct download progress
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 4
-                        visible: manager.downloading || manager.progress > 0
-
-                        ProgressBar {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 6
-                            from: 0.0; to: 1.0
-                            value: manager.progress
-                            indeterminate: manager.downloading && manager.progress === 0
-                            Material.accent: Material.DeepPurple
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 8
-
-                            Label {
-                                text: Math.floor(manager.progress * 100) + "%"
-                                font.pixelSize: 13
-                                font.weight: Font.Bold
-                                color: Material.accent
-                            }
-
-                            Item { Layout.fillWidth: true }
-
-                            Label {
-                                text: manager.speedText
-                                font.pixelSize: 12
-                                color: "#4ade80"
-                            }
-
-                            Label {
-                                text: {
-                                    if (manager.progress < 0.05 || elapsedTime < 1) return ""
-                                    var remaining = (1.0 - manager.progress) / manager.progress
-                                    var seconds = Math.round(remaining * elapsedTime)
-                                    if (seconds < 1) return ""
-                                    if (seconds < 60) return seconds + "s remaining"
-                                    return Math.floor(seconds / 60) + "m " + (seconds % 60) + "s"
-                                }
-                                font.pixelSize: 12
-                                color: Material.color(Material.Grey)
-                            }
-                        }
-                    }
                 }
             }
 
             // ════════════════════════════════════════════════════
-            // Section: Daemon Control — sends commands through relay to daemon
+            // Section: Update Pipeline - single unified flow
             // ════════════════════════════════════════════════════
             GroupBox {
                 Layout.fillWidth: true
-                title: "3. Daemon Control"
+                title: "2. Update Pipeline"
                 Material.elevation: 1
 
                 ColumnLayout {
                     anchors.fill: parent
                     spacing: 10
 
-                    // Connection status to relay (gateway to daemon)
+                    // Connection to relay
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 8
@@ -343,12 +224,6 @@ ApplicationWindow {
                             color: manager.relayConnected ? "#4ade80" : "#ef4444"
                             Layout.alignment: Qt.AlignVCenter
                         }
-                        Label {
-                            text: "(relay forwards commands to daemon)"
-                            font.pixelSize: 10
-                            color: Material.color(Material.Grey)
-                            Layout.alignment: Qt.AlignVCenter
-                        }
                         Item { Layout.fillWidth: true }
                         Button {
                             text: "Connect"
@@ -358,16 +233,16 @@ ApplicationWindow {
                         }
                     }
 
-                    // Daemon state display
+                    // Current state
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: relayStateLabel.height + 16
+                        Layout.preferredHeight: stateLabel.height + 12
                         radius: 4
                         color: Material.color(Material.Grey, Material.Shade100)
                         visible: manager.relayState !== "Not connected"
 
                         Label {
-                            id: relayStateLabel
+                            id: stateLabel
                             anchors.fill: parent
                             anchors.margins: 8
                             text: manager.relayState
@@ -378,20 +253,39 @@ ApplicationWindow {
                         }
                     }
 
-                    // ── Firmware source (prerequisite for daemon deployment) ──
-                    Label {
-                        text: "Step 1: Get firmware from service"
-                        font.pixelSize: 13
-                        font.weight: Font.Bold
-                        color: Material.color(Material.Grey, Material.Shade700)
+                    // Single progress bar
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+                        visible: manager.relayProgress > 0 || manager.relayState.indexOf("downloading") >= 0
+                                 || manager.relayState.indexOf("installing") >= 0
+
+                        ProgressBar {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 8
+                            from: 0.0; to: 1.0
+                            value: manager.relayProgress
+                            indeterminate: manager.relayProgress === 0
+                                           && (manager.relayState.indexOf("downloading") >= 0
+                                            || manager.relayState.indexOf("installing") >= 0)
+                            Material.accent: Material.DeepPurple
+                        }
+
+                        Label {
+                            text: Math.floor(manager.relayProgress * 100) + "%"
+                            font.pixelSize: 12
+                            font.weight: Font.Bold
+                            color: Material.accent
+                        }
                     }
 
+                    // Action buttons
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 8
 
                         Button {
-                            text: "Fetch Firmware from Service"
+                            text: "\u2776 Fetch Firmware"
                             enabled: manager.relayConnected
                             implicitHeight: 36
                             Layout.fillWidth: true
@@ -401,28 +295,7 @@ ApplicationWindow {
                         }
 
                         Button {
-                            text: "Fetch on Schedule (30s)"
-                            enabled: manager.relayConnected
-                            implicitHeight: 36
-                            Layout.fillWidth: true
-                            onClicked: manager.sendRelayCommand(1, 30)
-                        }
-                    }
-
-                    // ── Daemon commands ──
-                    Label {
-                        text: "Step 2: Control the daemon"
-                        font.pixelSize: 13
-                        font.weight: Font.Bold
-                        color: Material.color(Material.Grey, Material.Shade700)
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 8
-
-                        Button {
-                            text: "Deploy to Daemon"
+                            text: "\u2777 Deploy to Device"
                             enabled: manager.relayConnected && manager.relayState.indexOf("ready") >= 0
                             implicitHeight: 36
                             Layout.fillWidth: true
@@ -430,16 +303,6 @@ ApplicationWindow {
                             Material.foreground: "white"
                             onClicked: manager.installUpdate()
                         }
-
-                        Button {
-                            text: "Cancel Deploy"
-                            enabled: manager.relayConnected
-                            implicitHeight: 36
-                            Layout.fillWidth: true
-                            Material.background: Material.Red
-                            Material.foreground: "white"
-                            onClicked: manager.sendRelayCommand(3)
-                        }
                     }
 
                     RowLayout {
@@ -447,32 +310,42 @@ ApplicationWindow {
                         spacing: 8
 
                         Button {
-                            text: "Daemon Status"
+                            text: "Status"
                             enabled: manager.relayConnected
-                            implicitHeight: 36
+                            implicitHeight: 34
                             Layout.fillWidth: true
                             onClicked: manager.sendRelayCommand(4)
                         }
 
                         Button {
-                            text: "Installed Version"
+                            text: "Version"
                             enabled: manager.relayConnected
-                            implicitHeight: 36
+                            implicitHeight: 34
                             Layout.fillWidth: true
                             onClicked: manager.getRelayVersion()
+                        }
+
+                        Button {
+                            text: "Cancel"
+                            enabled: manager.relayConnected
+                            implicitHeight: 34
+                            Layout.fillWidth: true
+                            Material.background: Material.Red
+                            Material.foreground: "white"
+                            onClicked: manager.sendRelayCommand(3)
                         }
                     }
 
                     // Command output
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: relayOutputLabel.height + 16
+                        Layout.preferredHeight: outputLabel.height + 12
                         radius: 4
                         color: Material.color(Material.DeepPurple, Material.Shade50)
                         visible: manager.relayOutput.length > 0
 
                         Label {
-                            id: relayOutputLabel
+                            id: outputLabel
                             anchors.fill: parent
                             anchors.margins: 8
                             text: manager.relayOutput
@@ -488,16 +361,6 @@ ApplicationWindow {
             // Spacer
             Item { Layout.fillHeight: true }
         }
-    }
-
-    // ETA timer
-    property double elapsedTime: 0.0
-    Timer {
-        interval: 1000
-        repeat: true
-        running: manager.downloading
-        onTriggered: elapsedTime += 1.0
-        onRunningChanged: if (!running) elapsedTime = 0.0
     }
 
     // ── Status Bar ────────────────────────────────────────────
@@ -521,8 +384,7 @@ ApplicationWindow {
                 text: manager.status
                 font.pixelSize: 11
                 font.weight: Font.Medium
-                color: manager.downloading ? "#d97706" :
-                       manager.connected ? "#16a34a" :
+                color: manager.connected ? "#16a34a" :
                        manager.relayConnected ? "#7c3aed" :
                        Material.color(Material.Grey)
                 elide: Text.ElideRight
@@ -546,7 +408,7 @@ ApplicationWindow {
                     color: manager.relayConnected ? "#4ade80" : "#9ca3af"
                 }
                 Label {
-                    text: "Daemon"
+                    text: "Pipe"
                     font.pixelSize: 9
                     color: Material.color(Material.Grey)
                 }

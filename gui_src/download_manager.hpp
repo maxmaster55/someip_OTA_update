@@ -28,6 +28,7 @@ class DownloadManager : public QObject {
     Q_PROPERTY(QString versionOverride READ versionOverride WRITE setVersionOverride NOTIFY versionOverrideChanged)
     Q_PROPERTY(QString relayState READ relayState NOTIFY relayStateChanged)
     Q_PROPERTY(QString relayOutput READ relayOutput NOTIFY relayOutputChanged)
+    Q_PROPERTY(double relayProgress READ relayProgress NOTIFY relayProgressChanged)
     Q_PROPERTY(bool relayConnected READ relayConnected NOTIFY relayConnectedChanged)
     Q_PROPERTY(bool serviceRunning READ serviceRunning NOTIFY serviceRunningChanged)
 
@@ -46,6 +47,7 @@ public:
     QString versionOverride() const { std::lock_guard<std::mutex> l(mutex_); return versionOverride_; }
     QString relayState() const { std::lock_guard<std::mutex> l(mutex_); return relayState_; }
     QString relayOutput() const { std::lock_guard<std::mutex> l(mutex_); return relayOutput_; }
+    double relayProgress() const { std::lock_guard<std::mutex> l(mutex_); return relayProgress_; }
     bool relayConnected() const { std::lock_guard<std::mutex> l(mutex_); return relayConnected_; }
     bool serviceRunning() const { std::lock_guard<std::mutex> l(mutex_); return serviceRunning_; }
 
@@ -70,6 +72,7 @@ signals:
     void versionOverrideChanged();
     void relayStateChanged();
     void relayOutputChanged();
+    void relayProgressChanged();
     void relayConnectedChanged();
     void serviceRunningChanged();
 
@@ -85,6 +88,7 @@ private:
     void setVersionOverride(const QString& v) { { std::lock_guard<std::mutex> l(mutex_); versionOverride_ = v; } emit versionOverrideChanged(); }
     void setRelayState(const QString& v) { { std::lock_guard<std::mutex> l(mutex_); relayState_ = v; } emit relayStateChanged(); }
     void setRelayOutput(const QString& v) { { std::lock_guard<std::mutex> l(mutex_); relayOutput_ = v; } emit relayOutputChanged(); }
+    void setRelayProgress(double v) { { std::lock_guard<std::mutex> l(mutex_); relayProgress_ = v; } emit relayProgressChanged(); }
     void setRelayConnected(bool v) { { std::lock_guard<std::mutex> l(mutex_); relayConnected_ = v; } emit relayConnectedChanged(); }
     void setServiceRunning(bool v) { { std::lock_guard<std::mutex> l(mutex_); serviceRunning_ = v; } emit serviceRunningChanged(); }
 
@@ -114,6 +118,7 @@ private:
     QString versionOverride_;
     QString relayState_ = "Not connected";
     QString relayOutput_ = "";
+    double relayProgress_ = 0.0;
     bool relayConnected_ = false;
     bool serviceRunning_ = false;
 

@@ -1,6 +1,6 @@
 {
-    "downloadPath": "/tmp/ota_downloads",
-    "decompressionPath": "/tmp/ota_extracted",
+    "downloadPath": "/tmp/ota_daemon_downloads",
+    "decompressionPath": "/tmp/ota_daemon_extracted",
     "checkIntervalSec": 30,
     "autoDecompress": true,
     "autoCleanup": true,

@@ -14,14 +14,14 @@
             "id" : "0x1313"
         } 
     ],
+    "services" :
+[
+    {
+        "service" : "0x1b1e",
+        "instance" : "0x567a"
+    }
+],
     "routing" : "ota_daemon",
-    "networks" : [
-        {
-            "interface" : "eth0",
-            "address" : "192.168.2.2",
-            "netmask" : "255.255.0.0"
-        }
-    ],
     "service-discovery" :
     {
         "enable" : "true",

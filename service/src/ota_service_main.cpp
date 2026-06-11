@@ -72,17 +72,7 @@ int main(int argc, char** argv) {
     if (relayProxy && relayProxy->isAvailable()) {
         service->setRelayProxy(relayProxy);
         std::cout << "Relay proxy set on service" << std::endl;
-
-        CommonAPI::CallStatus callStatus;
-        bool accepted = false;
-        std::string message;
-        relayProxy->sendCommand(
-            static_cast<uint32_t>(relay::UPDATE_NOW),
-            service->getVersionId(),
-            0,
-            callStatus, accepted, message);
-        std::cout << "Sent UPDATE_NOW to relay: accepted=" << accepted
-                  << ", message=" << message << std::endl;
+        std::cout << "Service ready. Waiting for client requests..." << std::endl;
     } else {
         std::cout << "Relay not available, running standalone" << std::endl;
     }

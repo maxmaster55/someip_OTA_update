@@ -51,13 +51,6 @@ void DownloadManager::startServing() {
         return;
     }
 
-    bool registered = runtime_->registerService("local", "manager.updater.Updater", updaterStub_);
-    if (!registered) {
-        setStatus("Failed to register Updater service");
-        updaterStub_.reset();
-        return;
-    }
-
     const auto& meta = updaterStub_->getManager()->getMetadata();
     QString info = QString("Version 0x%1  |  %2 MB  |  %3 chunks")
         .arg(meta.versionId, 8, 16, QLatin1Char('0'))
@@ -68,12 +61,18 @@ void DownloadManager::startServing() {
 
     setFileName(fi.fileName());
     setFileInfo(info);
-    setServing(true);
-    setStatus("Serving firmware via SOME/IP");
+
+    bool registered = runtime_->registerService("local", "manager.updater.Updater", updaterStub_);
+    if (!registered) {
+        setFileInfo(info + "  |  (Serving disabled \u2014 another instance has the service)");
+        setStatus("Another instance already serves firmware; use as controller only");
+    } else {
+        setServing(true);
+        setStatus("Serving firmware via SOME/IP");
+        updaterStub_->fireNotifyUpdateAvailableEvent(meta.versionId);
+    }
 
     connectToRelay();
-
-    updaterStub_->fireNotifyUpdateAvailableEvent(meta.versionId);
 }
 
 void DownloadManager::stopServing() {

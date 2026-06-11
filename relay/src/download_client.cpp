@@ -79,23 +79,9 @@ bool DownloadClient::checkForUpdate(uint32_t& versionId, int64_t& fileSize,
 }
 
 bool DownloadClient::downloadUpdate(uint32_t versionId, const std::string& downloadPath,
+                                    int64_t fileSize, const std::string& md5Hash, bool isCompressed,
                                     ProgressCallback onProgress, CompletionCallback onComplete) {
     std::cout << "[DownloadClient] Starting download for version 0x" << std::hex << versionId << std::dec << std::endl;
-
-    uint32_t fetchedVersionId = 0;
-    int64_t fileSize = 0;
-    std::string md5Hash = "";
-    bool isCompressed = false;
-
-    CommonAPI::CallStatus callStatus;
-    proxy_->getUpdateInfo(callStatus, fetchedVersionId, fileSize, md5Hash, isCompressed);
-
-    if (callStatus != CommonAPI::CallStatus::SUCCESS) {
-        std::cerr << "[DownloadClient] Failed to get update info" << std::endl;
-        proxy_->getDownloadStatus(versionId, false, true, "Failed to get update info", callStatus);
-        if (onComplete) onComplete(false, "", "Failed to get update info");
-        return false;
-    }
 
     std::cout << "[DownloadClient] Update info: Size=" << fileSize << ", MD5=" << md5Hash
               << ", Compressed=" << (isCompressed ? "yes" : "no") << std::endl;
@@ -193,7 +179,10 @@ bool DownloadClient::downloadUpdate(uint32_t versionId, const std::string& downl
     if (failed) {
         std::cerr << "[DownloadClient] Download failed after " << chunksReceived << "/" << totalChunks << " chunks" << std::endl;
         std::filesystem::remove(filePath);
-        proxy_->getDownloadStatus(versionId, false, true, "Download failed", callStatus);
+        if (proxy_ && proxy_->isAvailable()) {
+            CommonAPI::CallStatus cs;
+            proxy_->getDownloadStatus(versionId, false, true, "Download failed", cs);
+        }
         if (onComplete) onComplete(false, "", "Download failed");
         return false;
     }
@@ -217,7 +206,10 @@ bool DownloadClient::downloadUpdate(uint32_t versionId, const std::string& downl
     if (!checksumMatch || !sizeMatch) {
         std::cerr << "[DownloadClient] Checksum or size verification failed!" << std::endl;
         std::filesystem::remove(filePath);
-        proxy_->getDownloadStatus(versionId, false, true, "Verification failed", callStatus);
+        if (proxy_ && proxy_->isAvailable()) {
+            CommonAPI::CallStatus cs;
+            proxy_->getDownloadStatus(versionId, false, true, "Verification failed", cs);
+        }
         if (onComplete) onComplete(false, "", "Verification failed");
         return false;
     }
@@ -225,7 +217,10 @@ bool DownloadClient::downloadUpdate(uint32_t versionId, const std::string& downl
     std::cout << "[DownloadClient] File saved to: " << filePath << std::endl;
     lastFilePath_ = filePath;
 
-    proxy_->getDownloadStatus(versionId, true, false, "Download successful", callStatus);
+    if (proxy_ && proxy_->isAvailable()) {
+        CommonAPI::CallStatus cs;
+        proxy_->getDownloadStatus(versionId, true, false, "Download successful", cs);
+    }
     if (onComplete) onComplete(true, filePath, "Download successful");
     return true;
 }

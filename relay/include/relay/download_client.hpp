@@ -20,6 +20,7 @@ public:
     bool isAvailable() const;
     bool checkForUpdate(uint32_t& versionId, int64_t& fileSize, std::string& md5Hash, bool& isCompressed);
     bool downloadUpdate(uint32_t versionId, const std::string& downloadPath,
+                        int64_t fileSize, const std::string& md5Hash, bool isCompressed,
                         ProgressCallback onProgress = nullptr,
                         CompletionCallback onComplete = nullptr);
 

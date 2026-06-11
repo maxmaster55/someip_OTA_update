@@ -223,7 +223,10 @@ bool OtaRelay::handleCommand(uint32_t commandCode, uint32_t versionId,
             return false;
 
         case relay::GET_VERSION:
-            outMessage = "Current version: " + currentVersionString_;
+            {
+                std::lock_guard<std::mutex> lock(stateMutex_);
+                outMessage = "Current version: " + currentVersionString_;
+            }
             return true;
 
         case relay::CANCEL:
@@ -234,9 +237,14 @@ bool OtaRelay::handleCommand(uint32_t commandCode, uint32_t versionId,
                     current = currentState_;
                 }
                 if (current == relay::RelayState::INSTALLING) {
+                    uint32_t cancelVid;
+                    {
+                        std::lock_guard<std::mutex> lock(stateMutex_);
+                        cancelVid = pendingVersionId_;
+                    }
                     std::string daemonMsg;
                     if (daemonController_.cancelInstall(daemonMsg)) {
-                        setState(relay::RelayState::IDLE, pendingVersionId_, "Install cancelled");
+                        setState(relay::RelayState::IDLE, cancelVid, "Install cancelled");
                         outMessage = "Install cancelled";
                         return true;
                     }
@@ -288,6 +296,7 @@ bool OtaRelay::handleCommand(uint32_t commandCode, uint32_t versionId,
 }
 
 void OtaRelay::handleVersionQuery(uint32_t& versionId, std::string& versionString) {
+    std::lock_guard<std::mutex> lock(stateMutex_);
     versionId = currentVersionId_;
     versionString = currentVersionString_;
 }
@@ -297,12 +306,11 @@ bool OtaRelay::doDownload(uint32_t versionId) {
     {
         std::lock_guard<std::mutex> lock(stateMutex_);
         current = currentState_;
-    }
-
-    if (current == relay::RelayState::DOWNLOADING ||
-        current == relay::RelayState::INSTALLING) {
-        std::cerr << "[Relay] Busy, cannot start download" << std::endl;
-        return false;
+        if (current == relay::RelayState::DOWNLOADING ||
+            current == relay::RelayState::INSTALLING) {
+            std::cerr << "[Relay] Busy, cannot start download" << std::endl;
+            return false;
+        }
     }
 
     hasScheduledUpdate_ = false;
@@ -325,9 +333,12 @@ bool OtaRelay::doDownload(uint32_t versionId) {
         versionId = svid;
     }
 
-    if (pendingVersionId_ == versionId && current == relay::RelayState::READY) {
-        std::cout << "[Relay] Already downloaded version 0x" << std::hex << versionId << std::dec << std::endl;
-        return true;
+    {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        if (pendingVersionId_ == versionId && currentState_ == relay::RelayState::READY) {
+            std::cout << "[Relay] Already downloaded version 0x" << std::hex << versionId << std::dec << std::endl;
+            return true;
+        }
     }
 
     bool downloaded = downloadClient_.downloadUpdate(
@@ -340,6 +351,7 @@ bool OtaRelay::doDownload(uint32_t versionId) {
         [this, versionId](bool success, const std::string& filePath, const std::string& message) {
             (void)message;
             if (success) {
+                std::lock_guard<std::mutex> lock(stateMutex_);
                 pendingVersionId_ = versionId;
                 pendingFilePath_ = filePath;
                 downloadedVersionId_ = versionId;
@@ -358,9 +370,13 @@ bool OtaRelay::doDownload(uint32_t versionId) {
 
 bool OtaRelay::doInstall() {
     relay::RelayState current;
+    uint32_t ver;
+    std::string filePath;
     {
         std::lock_guard<std::mutex> lock(stateMutex_);
         current = currentState_;
+        ver = pendingVersionId_;
+        filePath = pendingFilePath_;
     }
 
     if (current != relay::RelayState::READY) {
@@ -368,41 +384,49 @@ bool OtaRelay::doInstall() {
         return false;
     }
 
-    if (pendingFilePath_.empty()) {
+    if (filePath.empty()) {
         std::cerr << "[Relay] No file path available" << std::endl;
         return false;
     }
 
-    return triggerDaemonInstall(pendingVersionId_);
+    if (!triggerDaemonInstall(ver)) {
+        return false;
+    }
+    setState(relay::RelayState::IDLE, ver, "File sent to daemon, use DAEMON_INSTALL to install");
+    return true;
 }
 
 bool OtaRelay::sendToDaemon() {
-    if (pendingFilePath_.empty()) {
+    uint32_t ver;
+    std::string filePath;
+    {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        ver = pendingVersionId_;
+        filePath = pendingFilePath_;
+    }
+    if (filePath.empty()) {
         std::cerr << "[Relay] No file to send to daemon" << std::endl;
         return false;
     }
-    if (!triggerDaemonInstall(pendingVersionId_)) {
+    if (!triggerDaemonInstall(ver)) {
         return false;
     }
-    setState(relay::RelayState::IDLE, pendingVersionId_, "File sent to daemon, waiting for install command");
+    setState(relay::RelayState::IDLE, ver, "File sent to daemon, waiting for install command");
     return true;
 }
 
 bool OtaRelay::daemonInstall() {
-    relay::RelayState current;
-    {
-        std::lock_guard<std::mutex> lock(stateMutex_);
-        current = currentState_;
-    }
     std::string msg;
     if (!daemonController_.triggerInstall(msg)) {
         std::cerr << "[Relay] Failed to trigger install on daemon: " << msg << std::endl;
         return false;
     }
+    uint32_t ver;
     {
         std::lock_guard<std::mutex> lock(stateMutex_);
-        setState(relay::RelayState::INSTALLING, currentVersionId_, "Daemon installing...");
+        ver = currentVersionId_;
     }
+    setState(relay::RelayState::INSTALLING, ver, "Daemon installing...");
     return true;
 }
 
@@ -419,9 +443,12 @@ bool OtaRelay::doUpdateScheduled(uint32_t versionId, uint32_t delaySec) {
         return false;
     }
 
+    {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        pendingVersionId_ = versionId;
+    }
     hasScheduledUpdate_ = true;
     scheduledTime_ = std::chrono::steady_clock::now() + std::chrono::seconds(delaySec);
-    pendingVersionId_ = versionId;
 
     setState(relay::RelayState::SCHEDULED, versionId,
              "Update scheduled in " + std::to_string(delaySec) + " seconds");
@@ -429,8 +456,13 @@ bool OtaRelay::doUpdateScheduled(uint32_t versionId, uint32_t delaySec) {
 }
 
 bool OtaRelay::triggerDaemonInstall(uint32_t versionId) {
+    std::string filePath;
+    {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        filePath = pendingFilePath_;
+    }
     std::cout << "[Relay] triggerDaemonInstall: version=0x" << std::hex << versionId
-              << std::dec << ", file=" << pendingFilePath_ << std::endl;
+              << std::dec << ", file=" << filePath << std::endl;
     setState(relay::RelayState::INSTALLING, versionId, "Sending file to daemon");
 
     if (!daemonController_.isAvailable()) {
@@ -451,22 +483,22 @@ bool OtaRelay::triggerDaemonInstall(uint32_t versionId) {
         }
     }
 
-    if (!std::filesystem::exists(pendingFilePath_)) {
-        std::cerr << "[Relay] Firmware file not found: " << pendingFilePath_ << std::endl;
+    if (!std::filesystem::exists(filePath)) {
+        std::cerr << "[Relay] Firmware file not found: " << filePath << std::endl;
         setState(relay::RelayState::ERROR, versionId, "File not found");
         return false;
     }
 
-    uint64_t fileSize = std::filesystem::file_size(pendingFilePath_);
-    std::string md5Hash = computeFileMd5(pendingFilePath_);
-    bool isCompressed = (pendingFilePath_.find(".bz2") != std::string::npos ||
-                         pendingFilePath_.find(".gz") != std::string::npos);
+    uint64_t fileSize = std::filesystem::file_size(filePath);
+    std::string md5Hash = computeFileMd5(filePath);
+    bool isCompressed = (filePath.find(".bz2") != std::string::npos ||
+                         filePath.find(".gz") != std::string::npos);
 
     std::cout << "[Relay] Sending file: size=" << fileSize << ", md5=" << md5Hash
               << ", compressed=" << (isCompressed ? "yes" : "no") << std::endl;
 
     std::string daemonMsg;
-    if (!daemonController_.sendFile(pendingFilePath_, versionId, fileSize, md5Hash, isCompressed, daemonMsg)) {
+    if (!daemonController_.sendFile(filePath, versionId, fileSize, md5Hash, isCompressed, daemonMsg)) {
         std::cerr << "[Relay] Daemon sendFile failed: " << daemonMsg << std::endl;
         setState(relay::RelayState::ERROR, versionId, "Daemon install failed: " + daemonMsg);
         return false;
@@ -482,21 +514,24 @@ void OtaRelay::onDaemonProgress(uint32_t versionId, uint32_t progress,
     std::cout << "[Relay] Daemon progress: " << state << " " << progress << "% - " << message << std::endl;
 
     if (state == "complete") {
-        currentVersionId_ = versionId;
-        std::ostringstream ss;
-        ss << "v" << ((versionId >> 16) & 0xFF) << "." << (versionId & 0xFF);
-        currentVersionString_ = ss.str();
+        {
+            std::lock_guard<std::mutex> lock(stateMutex_);
+            currentVersionId_ = versionId;
+            std::ostringstream ss;
+            ss << "v" << ((versionId >> 16) & 0xFF) << "." << (versionId & 0xFF);
+            currentVersionString_ = ss.str();
 
-        if (config_.autoCleanup && !pendingFilePath_.empty()) {
-            try {
-                std::filesystem::remove(pendingFilePath_);
-                std::cout << "[Relay] Cleaned up: " << pendingFilePath_ << std::endl;
-            } catch (...) {}
+            if (config_.autoCleanup && !pendingFilePath_.empty()) {
+                try {
+                    std::filesystem::remove(pendingFilePath_);
+                    std::cout << "[Relay] Cleaned up: " << pendingFilePath_ << std::endl;
+                } catch (...) {}
+            }
+
+            downloadedVersionId_ = 0;
+            pendingVersionId_ = 0;
+            pendingFilePath_.clear();
         }
-
-        downloadedVersionId_ = 0;
-        pendingVersionId_ = 0;
-        pendingFilePath_.clear();
         setState(relay::RelayState::COMPLETE, versionId, "Install complete: " + message, 100);
         setState(relay::RelayState::IDLE, versionId, "Ready");
     } else if (state == "failed" || state == "error") {
@@ -528,8 +563,11 @@ void OtaRelay::checkAndDownloadUpdates() {
         return;
     }
 
-    if (versionId == 0 || versionId <= currentVersionId_ || versionId == downloadedVersionId_) {
-        return;
+    {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        if (versionId == 0 || versionId <= currentVersionId_ || versionId == downloadedVersionId_) {
+            return;
+        }
     }
 
     std::cout << "[Relay] New update available: version 0x" << std::hex << versionId
@@ -548,9 +586,12 @@ void OtaRelay::checkAndDownloadUpdates() {
         },
         [this, versionId](bool success, const std::string& filePath, const std::string& message) {
             if (success) {
-                pendingVersionId_ = versionId;
-                pendingFilePath_ = filePath;
-                downloadedVersionId_ = versionId;
+                {
+                    std::lock_guard<std::mutex> lock(stateMutex_);
+                    pendingVersionId_ = versionId;
+                    pendingFilePath_ = filePath;
+                    downloadedVersionId_ = versionId;
+                }
                 setState(relay::RelayState::READY, versionId,
                          "Download complete. Click 'Install' to decompress.", 100);
             } else {
@@ -570,9 +611,14 @@ void OtaRelay::processScheduledCommands() {
 
     auto now = std::chrono::steady_clock::now();
     if (now >= scheduledTime_) {
+        uint32_t ver;
+        {
+            std::lock_guard<std::mutex> lock(stateMutex_);
+            ver = pendingVersionId_;
+        }
         std::cout << "[Relay] Scheduled download time reached" << std::endl;
         hasScheduledUpdate_ = false;
-        doDownload(pendingVersionId_);
+        doDownload(ver);
     }
 }
 

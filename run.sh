@@ -25,38 +25,43 @@ case "$MODE" in
 
         # 1. Relay first (routing manager for local dev)
         echo "[1/4] Starting Relay (routing manager)..."
-        VSOMEIP_CONFIGURATION=./relay.json \
-            ./build/ota_relay ./example_relay_config.json &
+        VSOMEIP_CONFIGURATION=./relay/config/relay.json \
+            ./build/relay/ota_relay ./relay/config/example_relay_config.json &
         RELAY_PID=$!
         sleep 2
 
         # 2. Daemon (DaemonControl server - installation agent)
         echo "[2/4] Starting Daemon..."
-        VSOMEIP_CONFIGURATION=./daemon.json \
-            ./build/ota_daemon ./example_daemon_config.json &
+        VSOMEIP_CONFIGURATION=./daemon/config/daemon.json \
+            ./build/daemon/ota_daemon ./daemon/config/example_daemon_config.json &
         DAEMON_PID=$!
         sleep 1
 
         # 3. Service (firmware provider)
         echo "[3/4] Starting Service..."
-        VSOMEIP_CONFIGURATION=./service.json \
-            ./build/ota_service "$UPDATE_FILE" &
+        VSOMEIP_CONFIGURATION=./service/config/service.json \
+            ./build/service/ota_service "$UPDATE_FILE" &
         SERVICE_PID=$!
         sleep 2
 
         # 4. GUI (optional)
-        echo "[4/4] Starting GUI..."
-        VSOMEIP_CONFIGURATION=./service.json \
-            VSOMEIP_APPLICATION_NAME=ota_gui_proxy \
-            ./build/ota_gui &
-        GUI_PID=$!
+        if [ -f ./build/gui/ota_gui ]; then
+            echo "[4/4] Starting GUI..."
+            VSOMEIP_CONFIGURATION=./gui/config/service.json \
+                VSOMEIP_APPLICATION_NAME=ota_gui_proxy \
+                ./build/gui/ota_gui &
+            GUI_PID=$!
+        else
+            echo "[4/4] GUI binary not found (Qt6 may not be available) - skipping"
+            GUI_PID=""
+        fi
 
         echo ""
         echo "=== All components running ==="
         echo "  Relay   PID=$RELAY_PID  (routing manager)"
         echo "  Daemon  PID=$DAEMON_PID"
         echo "  Service PID=$SERVICE_PID"
-        echo "  GUI     PID=$GUI_PID"
+        [ -n "$GUI_PID" ] && echo "  GUI     PID=$GUI_PID"
         echo ""
         echo "Press Ctrl+C to stop all"
         echo ""
@@ -66,27 +71,27 @@ case "$MODE" in
 
     relay)
         echo "Starting Relay only..."
-        VSOMEIP_CONFIGURATION=./relay.json \
-            ./build/ota_relay ./example_relay_config.json
+        VSOMEIP_CONFIGURATION=./relay/config/relay.json \
+            ./build/relay/ota_relay ./relay/config/example_relay_config.json
         ;;
 
     daemon)
         echo "Starting Daemon only...  (relay must be running for routing)"
-        VSOMEIP_CONFIGURATION=./daemon.json \
-            ./build/ota_daemon ./example_daemon_config.json
+        VSOMEIP_CONFIGURATION=./daemon/config/daemon.json \
+            ./build/daemon/ota_daemon ./daemon/config/example_daemon_config.json
         ;;
 
     service)
         echo "Starting Service only...  (relay must be running for routing)"
-        VSOMEIP_CONFIGURATION=./service.json \
-            ./build/ota_service "$UPDATE_FILE"
+        VSOMEIP_CONFIGURATION=./service/config/service.json \
+            ./build/service/ota_service "$UPDATE_FILE"
         ;;
 
     gui)
         echo "Starting GUI only..."
-        VSOMEIP_CONFIGURATION=./service.json \
+        VSOMEIP_CONFIGURATION=./gui/config/service.json \
             VSOMEIP_APPLICATION_NAME=ota_gui_proxy \
-            ./build/ota_gui
+            ./build/gui/ota_gui
         ;;
 
     cleanup)

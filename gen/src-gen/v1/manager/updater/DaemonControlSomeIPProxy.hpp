@@ -57,9 +57,17 @@ public:
 
     virtual InstallProgressEvent& getInstallProgressEvent();
 
-    virtual void performInstall(std::string _firmwarePath, uint32_t _versionId, CommonAPI::CallStatus &_internalCallStatus, bool &_accepted, std::string &_message, const CommonAPI::CallInfo *_info);
+    virtual void beginInstall(uint32_t _versionId, uint64_t _fileSize, std::string _md5Hash, bool _isCompressed, CommonAPI::CallStatus &_internalCallStatus, bool &_accepted, std::string &_message, const CommonAPI::CallInfo *_info);
 
-    virtual std::future<CommonAPI::CallStatus> performInstallAsync(const std::string &_firmwarePath, const uint32_t &_versionId, PerformInstallAsyncCallback _callback, const CommonAPI::CallInfo *_info);
+    virtual std::future<CommonAPI::CallStatus> beginInstallAsync(const uint32_t &_versionId, const uint64_t &_fileSize, const std::string &_md5Hash, const bool &_isCompressed, BeginInstallAsyncCallback _callback, const CommonAPI::CallInfo *_info);
+
+    virtual void sendChunk(uint32_t _versionId, uint32_t _chunkIndex, std::string _data, CommonAPI::CallStatus &_internalCallStatus, bool &_accepted, const CommonAPI::CallInfo *_info);
+
+    virtual std::future<CommonAPI::CallStatus> sendChunkAsync(const uint32_t &_versionId, const uint32_t &_chunkIndex, const std::string &_data, SendChunkAsyncCallback _callback, const CommonAPI::CallInfo *_info);
+
+    virtual void finishInstall(uint32_t _versionId, CommonAPI::CallStatus &_internalCallStatus, bool &_accepted, std::string &_message, const CommonAPI::CallInfo *_info);
+
+    virtual std::future<CommonAPI::CallStatus> finishInstallAsync(const uint32_t &_versionId, FinishInstallAsyncCallback _callback, const CommonAPI::CallInfo *_info);
 
     virtual void cancelInstall(CommonAPI::CallStatus &_internalCallStatus, bool &_accepted, const CommonAPI::CallInfo *_info);
 

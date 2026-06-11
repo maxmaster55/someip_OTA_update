@@ -61,9 +61,26 @@ public:
         return &remoteEventHandler_;
     }
 
-    COMMONAPI_EXPORT virtual void performInstall(const std::shared_ptr<CommonAPI::ClientId> _client, std::string _firmwarePath, uint32_t _versionId, performInstallReply_t _reply) {
+    COMMONAPI_EXPORT virtual void beginInstall(const std::shared_ptr<CommonAPI::ClientId> _client, uint32_t _versionId, uint64_t _fileSize, std::string _md5Hash, bool _isCompressed, beginInstallReply_t _reply) {
         (void)_client;
-        (void)_firmwarePath;
+        (void)_versionId;
+        (void)_fileSize;
+        (void)_md5Hash;
+        (void)_isCompressed;
+        bool accepted = false;
+        std::string message = "";
+        _reply(accepted, message);
+    }
+    COMMONAPI_EXPORT virtual void sendChunk(const std::shared_ptr<CommonAPI::ClientId> _client, uint32_t _versionId, uint32_t _chunkIndex, std::string _data, sendChunkReply_t _reply) {
+        (void)_client;
+        (void)_versionId;
+        (void)_chunkIndex;
+        (void)_data;
+        bool accepted = false;
+        _reply(accepted);
+    }
+    COMMONAPI_EXPORT virtual void finishInstall(const std::shared_ptr<CommonAPI::ClientId> _client, uint32_t _versionId, finishInstallReply_t _reply) {
+        (void)_client;
         (void)_versionId;
         bool accepted = false;
         std::string message = "";

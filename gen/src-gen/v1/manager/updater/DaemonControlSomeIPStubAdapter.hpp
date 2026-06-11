@@ -58,11 +58,27 @@ public:
 
     CommonAPI::SomeIP::MethodWithReplyStubDispatcher<
         ::v1::manager::updater::DaemonControlStub,
-        std::tuple< std::string, uint32_t>,
+        std::tuple< uint32_t, uint64_t, std::string, bool>,
         std::tuple< bool, std::string>,
-        std::tuple< CommonAPI::SomeIP::StringDeployment, CommonAPI::SomeIP::IntegerDeployment<uint32_t>>,
+        std::tuple< CommonAPI::SomeIP::IntegerDeployment<uint32_t>, CommonAPI::SomeIP::IntegerDeployment<uint64_t>, CommonAPI::SomeIP::StringDeployment, CommonAPI::EmptyDeployment>,
         std::tuple< CommonAPI::EmptyDeployment, CommonAPI::SomeIP::StringDeployment>
-    > performInstallStubDispatcher;
+    > beginInstallStubDispatcher;
+    
+    CommonAPI::SomeIP::MethodWithReplyStubDispatcher<
+        ::v1::manager::updater::DaemonControlStub,
+        std::tuple< uint32_t, uint32_t, std::string>,
+        std::tuple< bool>,
+        std::tuple< CommonAPI::SomeIP::IntegerDeployment<uint32_t>, CommonAPI::SomeIP::IntegerDeployment<uint32_t>, CommonAPI::SomeIP::StringDeployment>,
+        std::tuple< CommonAPI::EmptyDeployment>
+    > sendChunkStubDispatcher;
+    
+    CommonAPI::SomeIP::MethodWithReplyStubDispatcher<
+        ::v1::manager::updater::DaemonControlStub,
+        std::tuple< uint32_t>,
+        std::tuple< bool, std::string>,
+        std::tuple< CommonAPI::SomeIP::IntegerDeployment<uint32_t>>,
+        std::tuple< CommonAPI::EmptyDeployment, CommonAPI::SomeIP::StringDeployment>
+    > finishInstallStubDispatcher;
     
     CommonAPI::SomeIP::MethodWithReplyStubDispatcher<
         ::v1::manager::updater::DaemonControlStub,
@@ -82,24 +98,42 @@ public:
             _connection,
             std::dynamic_pointer_cast< DaemonControlStub>(_stub)),
         getDaemonControlInterfaceVersionStubDispatcher(&DaemonControlStub::lockInterfaceVersionAttribute, &DaemonControlStub::getInterfaceVersion, false, true),
-        performInstallStubDispatcher(
-            &DaemonControlStub::performInstall,
+        beginInstallStubDispatcher(
+            &DaemonControlStub::beginInstall,
             false,
             _stub->hasElement(0),
-            std::make_tuple(static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr), static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr)),
+            std::make_tuple(static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr), static_cast< CommonAPI::SomeIP::IntegerDeployment<uint64_t>* >(nullptr), static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr), static_cast< CommonAPI::EmptyDeployment* >(nullptr)),
+            std::make_tuple(static_cast< CommonAPI::EmptyDeployment* >(nullptr), static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr)))
+        
+        ,
+        sendChunkStubDispatcher(
+            &DaemonControlStub::sendChunk,
+            false,
+            _stub->hasElement(1),
+            std::make_tuple(static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr), static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr), static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr)),
+            std::make_tuple(static_cast< CommonAPI::EmptyDeployment* >(nullptr)))
+        
+        ,
+        finishInstallStubDispatcher(
+            &DaemonControlStub::finishInstall,
+            false,
+            _stub->hasElement(2),
+            std::make_tuple(static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr)),
             std::make_tuple(static_cast< CommonAPI::EmptyDeployment* >(nullptr), static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr)))
         
         ,
         cancelInstallStubDispatcher(
             &DaemonControlStub::cancelInstall,
             false,
-            _stub->hasElement(1),
+            _stub->hasElement(3),
             std::make_tuple(),
             std::make_tuple(static_cast< CommonAPI::EmptyDeployment* >(nullptr)))
         
     {
-        DaemonControlSomeIPStubAdapterHelper::addStubDispatcher( { CommonAPI::SomeIP::method_id_t(0x1) }, &performInstallStubDispatcher );
-        DaemonControlSomeIPStubAdapterHelper::addStubDispatcher( { CommonAPI::SomeIP::method_id_t(0x2) }, &cancelInstallStubDispatcher );
+        DaemonControlSomeIPStubAdapterHelper::addStubDispatcher( { CommonAPI::SomeIP::method_id_t(0x1) }, &beginInstallStubDispatcher );
+        DaemonControlSomeIPStubAdapterHelper::addStubDispatcher( { CommonAPI::SomeIP::method_id_t(0x2) }, &sendChunkStubDispatcher );
+        DaemonControlSomeIPStubAdapterHelper::addStubDispatcher( { CommonAPI::SomeIP::method_id_t(0x3) }, &finishInstallStubDispatcher );
+        DaemonControlSomeIPStubAdapterHelper::addStubDispatcher( { CommonAPI::SomeIP::method_id_t(0x4) }, &cancelInstallStubDispatcher );
         // Provided events/fields
         {
             std::set<CommonAPI::SomeIP::eventgroup_id_t> itsEventGroups;

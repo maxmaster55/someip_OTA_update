@@ -70,7 +70,7 @@ public:
     virtual std::future<void> getCompletionFuture();
 
     /**
-     * Calls performInstall with synchronous semantics.
+     * Calls beginInstall with synchronous semantics.
      *
      * All const parameters are input parameters to this method.
      * All non-const parameters will be filled with the returned values.
@@ -78,9 +78,9 @@ public:
      * "SUCCESS" or which type of error has occurred. In case of an error, ONLY the CallStatus
      * will be set.
      */
-    virtual void performInstall(std::string _firmwarePath, uint32_t _versionId, CommonAPI::CallStatus &_internalCallStatus, bool &_accepted, std::string &_message, const CommonAPI::CallInfo *_info = nullptr);
+    virtual void beginInstall(uint32_t _versionId, uint64_t _fileSize, std::string _md5Hash, bool _isCompressed, CommonAPI::CallStatus &_internalCallStatus, bool &_accepted, std::string &_message, const CommonAPI::CallInfo *_info = nullptr);
     /**
-     * Calls performInstall with asynchronous semantics.
+     * Calls beginInstall with asynchronous semantics.
      *
      * The provided callback will be called when the reply to this call arrives or
      * an error occurs during the call. The CallStatus will indicate either "SUCCESS"
@@ -89,7 +89,49 @@ public:
      * The std::future returned by this method will be fulfilled at arrival of the reply.
      * It will provide the same value for CallStatus as will be handed to the callback.
      */
-    virtual std::future<CommonAPI::CallStatus> performInstallAsync(const std::string &_firmwarePath, const uint32_t &_versionId, PerformInstallAsyncCallback _callback = nullptr, const CommonAPI::CallInfo *_info = nullptr);
+    virtual std::future<CommonAPI::CallStatus> beginInstallAsync(const uint32_t &_versionId, const uint64_t &_fileSize, const std::string &_md5Hash, const bool &_isCompressed, BeginInstallAsyncCallback _callback = nullptr, const CommonAPI::CallInfo *_info = nullptr);
+    /**
+     * Calls sendChunk with synchronous semantics.
+     *
+     * All const parameters are input parameters to this method.
+     * All non-const parameters will be filled with the returned values.
+     * The CallStatus will be filled when the method returns and indicate either
+     * "SUCCESS" or which type of error has occurred. In case of an error, ONLY the CallStatus
+     * will be set.
+     */
+    virtual void sendChunk(uint32_t _versionId, uint32_t _chunkIndex, std::string _data, CommonAPI::CallStatus &_internalCallStatus, bool &_accepted, const CommonAPI::CallInfo *_info = nullptr);
+    /**
+     * Calls sendChunk with asynchronous semantics.
+     *
+     * The provided callback will be called when the reply to this call arrives or
+     * an error occurs during the call. The CallStatus will indicate either "SUCCESS"
+     * or which type of error has occurred. In case of any error, ONLY the CallStatus
+     * will have a defined value.
+     * The std::future returned by this method will be fulfilled at arrival of the reply.
+     * It will provide the same value for CallStatus as will be handed to the callback.
+     */
+    virtual std::future<CommonAPI::CallStatus> sendChunkAsync(const uint32_t &_versionId, const uint32_t &_chunkIndex, const std::string &_data, SendChunkAsyncCallback _callback = nullptr, const CommonAPI::CallInfo *_info = nullptr);
+    /**
+     * Calls finishInstall with synchronous semantics.
+     *
+     * All const parameters are input parameters to this method.
+     * All non-const parameters will be filled with the returned values.
+     * The CallStatus will be filled when the method returns and indicate either
+     * "SUCCESS" or which type of error has occurred. In case of an error, ONLY the CallStatus
+     * will be set.
+     */
+    virtual void finishInstall(uint32_t _versionId, CommonAPI::CallStatus &_internalCallStatus, bool &_accepted, std::string &_message, const CommonAPI::CallInfo *_info = nullptr);
+    /**
+     * Calls finishInstall with asynchronous semantics.
+     *
+     * The provided callback will be called when the reply to this call arrives or
+     * an error occurs during the call. The CallStatus will indicate either "SUCCESS"
+     * or which type of error has occurred. In case of any error, ONLY the CallStatus
+     * will have a defined value.
+     * The std::future returned by this method will be fulfilled at arrival of the reply.
+     * It will provide the same value for CallStatus as will be handed to the callback.
+     */
+    virtual std::future<CommonAPI::CallStatus> finishInstallAsync(const uint32_t &_versionId, FinishInstallAsyncCallback _callback = nullptr, const CommonAPI::CallInfo *_info = nullptr);
     /**
      * Calls cancelInstall with synchronous semantics.
      *
@@ -140,13 +182,31 @@ DaemonControlProxy<_AttributeExtensions...>::~DaemonControlProxy() {
 }
 
 template <typename ... _AttributeExtensions>
-void DaemonControlProxy<_AttributeExtensions...>::performInstall(std::string _firmwarePath, uint32_t _versionId, CommonAPI::CallStatus &_internalCallStatus, bool &_accepted, std::string &_message, const CommonAPI::CallInfo *_info) {
-    delegate_->performInstall(_firmwarePath, _versionId, _internalCallStatus, _accepted, _message, _info);
+void DaemonControlProxy<_AttributeExtensions...>::beginInstall(uint32_t _versionId, uint64_t _fileSize, std::string _md5Hash, bool _isCompressed, CommonAPI::CallStatus &_internalCallStatus, bool &_accepted, std::string &_message, const CommonAPI::CallInfo *_info) {
+    delegate_->beginInstall(_versionId, _fileSize, _md5Hash, _isCompressed, _internalCallStatus, _accepted, _message, _info);
 }
 
 template <typename ... _AttributeExtensions>
-std::future<CommonAPI::CallStatus> DaemonControlProxy<_AttributeExtensions...>::performInstallAsync(const std::string &_firmwarePath, const uint32_t &_versionId, PerformInstallAsyncCallback _callback, const CommonAPI::CallInfo *_info) {
-    return delegate_->performInstallAsync(_firmwarePath, _versionId, _callback, _info);
+std::future<CommonAPI::CallStatus> DaemonControlProxy<_AttributeExtensions...>::beginInstallAsync(const uint32_t &_versionId, const uint64_t &_fileSize, const std::string &_md5Hash, const bool &_isCompressed, BeginInstallAsyncCallback _callback, const CommonAPI::CallInfo *_info) {
+    return delegate_->beginInstallAsync(_versionId, _fileSize, _md5Hash, _isCompressed, _callback, _info);
+}
+template <typename ... _AttributeExtensions>
+void DaemonControlProxy<_AttributeExtensions...>::sendChunk(uint32_t _versionId, uint32_t _chunkIndex, std::string _data, CommonAPI::CallStatus &_internalCallStatus, bool &_accepted, const CommonAPI::CallInfo *_info) {
+    delegate_->sendChunk(_versionId, _chunkIndex, _data, _internalCallStatus, _accepted, _info);
+}
+
+template <typename ... _AttributeExtensions>
+std::future<CommonAPI::CallStatus> DaemonControlProxy<_AttributeExtensions...>::sendChunkAsync(const uint32_t &_versionId, const uint32_t &_chunkIndex, const std::string &_data, SendChunkAsyncCallback _callback, const CommonAPI::CallInfo *_info) {
+    return delegate_->sendChunkAsync(_versionId, _chunkIndex, _data, _callback, _info);
+}
+template <typename ... _AttributeExtensions>
+void DaemonControlProxy<_AttributeExtensions...>::finishInstall(uint32_t _versionId, CommonAPI::CallStatus &_internalCallStatus, bool &_accepted, std::string &_message, const CommonAPI::CallInfo *_info) {
+    delegate_->finishInstall(_versionId, _internalCallStatus, _accepted, _message, _info);
+}
+
+template <typename ... _AttributeExtensions>
+std::future<CommonAPI::CallStatus> DaemonControlProxy<_AttributeExtensions...>::finishInstallAsync(const uint32_t &_versionId, FinishInstallAsyncCallback _callback, const CommonAPI::CallInfo *_info) {
+    return delegate_->finishInstallAsync(_versionId, _callback, _info);
 }
 template <typename ... _AttributeExtensions>
 void DaemonControlProxy<_AttributeExtensions...>::cancelInstall(CommonAPI::CallStatus &_internalCallStatus, bool &_accepted, const CommonAPI::CallInfo *_info) {

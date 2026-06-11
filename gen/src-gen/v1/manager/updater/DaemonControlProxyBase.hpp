@@ -42,11 +42,17 @@ public:
         uint32_t, uint32_t, std::string, std::string
     > InstallProgressEvent;
 
-    typedef std::function<void(const CommonAPI::CallStatus&, const bool&, const std::string&)> PerformInstallAsyncCallback;
+    typedef std::function<void(const CommonAPI::CallStatus&, const bool&, const std::string&)> BeginInstallAsyncCallback;
+    typedef std::function<void(const CommonAPI::CallStatus&, const bool&)> SendChunkAsyncCallback;
+    typedef std::function<void(const CommonAPI::CallStatus&, const bool&, const std::string&)> FinishInstallAsyncCallback;
     typedef std::function<void(const CommonAPI::CallStatus&, const bool&)> CancelInstallAsyncCallback;
 
-    virtual void performInstall(std::string _firmwarePath, uint32_t _versionId, CommonAPI::CallStatus &_internalCallStatus, bool &_accepted, std::string &_message, const CommonAPI::CallInfo *_info = nullptr) = 0;
-    virtual std::future<CommonAPI::CallStatus> performInstallAsync(const std::string &_firmwarePath, const uint32_t &_versionId, PerformInstallAsyncCallback _callback = nullptr, const CommonAPI::CallInfo *_info = nullptr) = 0;
+    virtual void beginInstall(uint32_t _versionId, uint64_t _fileSize, std::string _md5Hash, bool _isCompressed, CommonAPI::CallStatus &_internalCallStatus, bool &_accepted, std::string &_message, const CommonAPI::CallInfo *_info = nullptr) = 0;
+    virtual std::future<CommonAPI::CallStatus> beginInstallAsync(const uint32_t &_versionId, const uint64_t &_fileSize, const std::string &_md5Hash, const bool &_isCompressed, BeginInstallAsyncCallback _callback = nullptr, const CommonAPI::CallInfo *_info = nullptr) = 0;
+    virtual void sendChunk(uint32_t _versionId, uint32_t _chunkIndex, std::string _data, CommonAPI::CallStatus &_internalCallStatus, bool &_accepted, const CommonAPI::CallInfo *_info = nullptr) = 0;
+    virtual std::future<CommonAPI::CallStatus> sendChunkAsync(const uint32_t &_versionId, const uint32_t &_chunkIndex, const std::string &_data, SendChunkAsyncCallback _callback = nullptr, const CommonAPI::CallInfo *_info = nullptr) = 0;
+    virtual void finishInstall(uint32_t _versionId, CommonAPI::CallStatus &_internalCallStatus, bool &_accepted, std::string &_message, const CommonAPI::CallInfo *_info = nullptr) = 0;
+    virtual std::future<CommonAPI::CallStatus> finishInstallAsync(const uint32_t &_versionId, FinishInstallAsyncCallback _callback = nullptr, const CommonAPI::CallInfo *_info = nullptr) = 0;
     virtual void cancelInstall(CommonAPI::CallStatus &_internalCallStatus, bool &_accepted, const CommonAPI::CallInfo *_info = nullptr) = 0;
     virtual std::future<CommonAPI::CallStatus> cancelInstallAsync(CancelInstallAsyncCallback _callback = nullptr, const CommonAPI::CallInfo *_info = nullptr) = 0;
     virtual InstallProgressEvent& getInstallProgressEvent() = 0;

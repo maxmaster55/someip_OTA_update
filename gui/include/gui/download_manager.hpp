@@ -2,27 +2,67 @@
 
 #include <QObject>
 #include <QString>
-#include <QProcess>
-#include <QTimer>
 #include <memory>
 #include <mutex>
-#include <atomic>
-#include <vector>
 #include <cstdint>
-#include <chrono>
 #include <CommonAPI/CommonAPI.hpp>
-#include <v1/manager/updater/UpdaterProxy.hpp>
+#include <v1/manager/updater/UpdaterStubDefault.hpp>
 #include <v1/manager/updater/RelayControlProxy.hpp>
-#include "transfer_config.hpp"
+#include <shared/transfer_config.hpp>
+#include <shared/file_manager.hpp>
+
+class GuiUpdaterStub : public v1::manager::updater::UpdaterStubDefault {
+public:
+    GuiUpdaterStub() = default;
+
+    bool loadFile(const std::string& path, const std::string& versionOverride) {
+        manager_ = std::make_shared<UpdateManager>();
+        return manager_->loadUpdateFile(path, versionOverride);
+    }
+
+    std::shared_ptr<UpdateManager> getManager() const { return manager_; }
+
+    void getUpdateInfo(const std::shared_ptr<CommonAPI::ClientId> _client,
+                       getUpdateInfoReply_t _reply) override {
+        (void)_client;
+        const auto& meta = manager_->getMetadata();
+        _reply(meta.versionId, meta.fileSize, meta.md5Hash, meta.isCompressed);
+    }
+
+    void getDownloadStatus(const std::shared_ptr<CommonAPI::ClientId> _client,
+                           uint32_t _versionId, bool _success, bool _retry,
+                           std::string _message,
+                           getDownloadStatusReply_t _reply) override {
+        (void)_client; (void)_versionId; (void)_success; (void)_retry; (void)_message;
+        _reply();
+    }
+
+    void getInstallationStatus(const std::shared_ptr<CommonAPI::ClientId> _client,
+                               uint32_t _versionId, bool _success,
+                               std::string _message,
+                               getInstallationStatusReply_t _reply) override {
+        (void)_client; (void)_versionId; (void)_success; (void)_message;
+        _reply();
+    }
+
+    void requestData(const std::shared_ptr<CommonAPI::ClientId> _client,
+                     uint32_t _versionId, uint32_t _chunkIndex,
+                     requestDataReply_t _reply) override {
+        (void)_client; (void)_versionId;
+        static constexpr uint32_t CHUNK_SIZE = ::CHUNK_SIZE;
+        std::string data = manager_->getChunk(_chunkIndex, CHUNK_SIZE);
+        bool last = !manager_->hasMoreChunks(_chunkIndex, CHUNK_SIZE);
+        _reply(_chunkIndex, data, last);
+    }
+
+private:
+    std::shared_ptr<UpdateManager> manager_;
+};
 
 class DownloadManager : public QObject {
     Q_OBJECT
-    Q_PROPERTY(double progress READ progress NOTIFY progressChanged)
     Q_PROPERTY(QString status READ status NOTIFY statusChanged)
-    Q_PROPERTY(QString speedText READ speedText NOTIFY speedTextChanged)
-    Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
     Q_PROPERTY(QString fileInfo READ fileInfo NOTIFY fileInfoChanged)
-    Q_PROPERTY(bool downloading READ downloading NOTIFY downloadingChanged)
     Q_PROPERTY(QString fileName READ fileName NOTIFY fileNameChanged)
     Q_PROPERTY(QString selectedFilePath READ selectedFilePath WRITE setSelectedFilePath NOTIFY selectedFilePathChanged)
     Q_PROPERTY(QString versionOverride READ versionOverride WRITE setVersionOverride NOTIFY versionOverrideChanged)
@@ -30,18 +70,14 @@ class DownloadManager : public QObject {
     Q_PROPERTY(QString relayOutput READ relayOutput NOTIFY relayOutputChanged)
     Q_PROPERTY(double relayProgress READ relayProgress NOTIFY relayProgressChanged)
     Q_PROPERTY(bool relayConnected READ relayConnected NOTIFY relayConnectedChanged)
-    Q_PROPERTY(bool serviceRunning READ serviceRunning NOTIFY serviceRunningChanged)
+    Q_PROPERTY(bool serving READ serving NOTIFY servingChanged)
 
 public:
     explicit DownloadManager(QObject *parent = nullptr);
     ~DownloadManager();
 
-    double progress() const { std::lock_guard<std::mutex> l(mutex_); return progress_; }
     QString status() const { std::lock_guard<std::mutex> l(mutex_); return status_; }
-    QString speedText() const { std::lock_guard<std::mutex> l(mutex_); return speedText_; }
-    bool connected() const { std::lock_guard<std::mutex> l(mutex_); return connected_; }
     QString fileInfo() const { std::lock_guard<std::mutex> l(mutex_); return fileInfo_; }
-    bool downloading() const { std::lock_guard<std::mutex> l(mutex_); return downloading_; }
     QString fileName() const { std::lock_guard<std::mutex> l(mutex_); return fileName_; }
     QString selectedFilePath() const { std::lock_guard<std::mutex> l(mutex_); return selectedFilePath_; }
     QString versionOverride() const { std::lock_guard<std::mutex> l(mutex_); return versionOverride_; }
@@ -49,25 +85,20 @@ public:
     QString relayOutput() const { std::lock_guard<std::mutex> l(mutex_); return relayOutput_; }
     double relayProgress() const { std::lock_guard<std::mutex> l(mutex_); return relayProgress_; }
     bool relayConnected() const { std::lock_guard<std::mutex> l(mutex_); return relayConnected_; }
-    bool serviceRunning() const { std::lock_guard<std::mutex> l(mutex_); return serviceRunning_; }
+    bool serving() const { std::lock_guard<std::mutex> l(mutex_); return serving_; }
 
-    Q_INVOKABLE void startService();
-    Q_INVOKABLE void stopService();
-    Q_INVOKABLE void startDownload();
-    Q_INVOKABLE void cancelDownload();
+    Q_INVOKABLE void startServing();
+    Q_INVOKABLE void stopServing();
     Q_INVOKABLE void connectToRelay();
     Q_INVOKABLE void disconnectFromRelay();
     Q_INVOKABLE void sendRelayCommand(int commandCode, int parameter = 0);
     Q_INVOKABLE void getRelayVersion();
-    Q_INVOKABLE void installUpdate();
+    Q_INVOKABLE void sendToDaemon();
+    Q_INVOKABLE void triggerDaemonInstall();
 
 signals:
-    void progressChanged();
     void statusChanged();
-    void speedTextChanged();
-    void connectedChanged();
     void fileInfoChanged();
-    void downloadingChanged();
     void fileNameChanged();
     void selectedFilePathChanged();
     void versionOverrideChanged();
@@ -75,15 +106,11 @@ signals:
     void relayOutputChanged();
     void relayProgressChanged();
     void relayConnectedChanged();
-    void serviceRunningChanged();
+    void servingChanged();
 
 private:
-    void setProgress(double v) { { std::lock_guard<std::mutex> l(mutex_); progress_ = v; } emit progressChanged(); }
     void setStatus(const QString& v) { { std::lock_guard<std::mutex> l(mutex_); status_ = v; } emit statusChanged(); }
-    void setSpeedText(const QString& v) { { std::lock_guard<std::mutex> l(mutex_); speedText_ = v; } emit speedTextChanged(); }
-    void setConnected(bool v) { { std::lock_guard<std::mutex> l(mutex_); connected_ = v; } emit connectedChanged(); }
     void setFileInfo(const QString& v) { { std::lock_guard<std::mutex> l(mutex_); fileInfo_ = v; } emit fileInfoChanged(); }
-    void setDownloading(bool v) { { std::lock_guard<std::mutex> l(mutex_); downloading_ = v; } emit downloadingChanged(); }
     void setFileName(const QString& v) { { std::lock_guard<std::mutex> l(mutex_); fileName_ = v; } emit fileNameChanged(); }
     void setSelectedFilePath(const QString& v);
     void setVersionOverride(const QString& v) { { std::lock_guard<std::mutex> l(mutex_); versionOverride_ = v; } emit versionOverrideChanged(); }
@@ -91,29 +118,15 @@ private:
     void setRelayOutput(const QString& v) { { std::lock_guard<std::mutex> l(mutex_); relayOutput_ = v; } emit relayOutputChanged(); }
     void setRelayProgress(double v) { { std::lock_guard<std::mutex> l(mutex_); relayProgress_ = v; } emit relayProgressChanged(); }
     void setRelayConnected(bool v) { { std::lock_guard<std::mutex> l(mutex_); relayConnected_ = v; } emit relayConnectedChanged(); }
-    void setServiceRunning(bool v) { { std::lock_guard<std::mutex> l(mutex_); serviceRunning_ = v; } emit serviceRunningChanged(); }
-
-    void launchService();
-    void killService();
-    void connectProxy();
-    void retryConnectProxy();
-    void checkForUpdate(std::function<void(bool)> onResult = nullptr);
+    void setServing(bool v) { { std::lock_guard<std::mutex> l(mutex_); serving_ = v; } emit servingChanged(); }
 
     std::shared_ptr<CommonAPI::Runtime> runtime_;
-    std::shared_ptr<v1::manager::updater::UpdaterProxy<>> proxy_;
+    std::shared_ptr<GuiUpdaterStub> updaterStub_;
     std::shared_ptr<v1::manager::updater::RelayControlProxy<>> relayProxy_;
-    QProcess* serviceProcess_ = nullptr;
-    QTimer* connectRetryTimer_ = nullptr;
-    int connectRetryCount_ = 0;
-    static constexpr int MAX_CONNECT_RETRIES = 10;
 
     mutable std::mutex mutex_;
-    double progress_ = 0.0;
     QString status_ = "Idle";
-    QString speedText_ = "";
-    bool connected_ = false;
     QString fileInfo_ = "";
-    bool downloading_ = false;
     QString fileName_ = "";
     QString selectedFilePath_;
     QString versionOverride_;
@@ -121,22 +134,5 @@ private:
     QString relayOutput_ = "";
     double relayProgress_ = 0.0;
     bool relayConnected_ = false;
-    bool serviceRunning_ = false;
-
-    uint32_t lastVersionProcessed_ = 0;
-    int64_t fileSize_ = 0;
-    uint32_t totalChunks_ = 0;
-    uint32_t downloadGeneration_ = 0;
-
-    std::atomic<uint32_t> nextToSend_{0};
-    std::atomic<uint32_t> outstanding_{0};
-
-    std::vector<uint8_t> downloadedData_;
-
-    std::chrono::steady_clock::time_point transferStartTime_;
-    uint32_t chunksReceived_ = 0;
-    int64_t bytesReceived_ = 0;
-
-    static constexpr uint32_t CHUNK_SIZE = ::CHUNK_SIZE;
-    static constexpr uint32_t WINDOW_SIZE = ::WINDOW_SIZE;
+    bool serving_ = false;
 };

@@ -8,16 +8,23 @@
 #include <mutex>
 #include <condition_variable>
 #include <vector>
+#include <csignal>
 #include "CommonAPI/CommonAPI.hpp"
-#include "command_types.hpp"
-#include "download_client.hpp"
-#include "daemon_controller.hpp"
-#include "relay_control_impl.hpp"
+#include <shared/command_types.hpp>
+#include "relay/download_client.hpp"
+#include "relay/daemon_controller.hpp"
+#include "relay/relay_control_impl.hpp"
 #include <nlohmann/json.hpp>
 #include <openssl/md5.h>
 
 using json = nlohmann::json;
 using namespace std::chrono_literals;
+
+static std::atomic<bool> g_running{true};
+
+static void signalHandler(int) {
+    g_running = false;
+}
 
 static std::string computeFileMd5(const std::string& path) {
     std::ifstream f(path, std::ios::binary);
@@ -49,7 +56,7 @@ public:
 
     bool init();
     void run();
-    void stop() { running_ = false; }
+    void stop() { g_running = false; running_ = false; }
     bool loadConfigFromFile(const std::string& configPath);
 
 private:
@@ -83,6 +90,8 @@ private:
     bool doDownload(uint32_t versionId);
     bool doUpdateScheduled(uint32_t versionId, uint32_t delaySec);
     bool doInstall();
+    bool sendToDaemon();
+    bool daemonInstall();
     bool triggerDaemonInstall(uint32_t versionId);
     void onDaemonProgress(uint32_t versionId, uint32_t progress,
                           const std::string& state, const std::string& message);
@@ -142,15 +151,9 @@ bool OtaRelay::init() {
         return false;
     }
 
-    if (!downloadClient_.connect()) {
-        std::cerr << "[Relay] Failed to connect to Update service" << std::endl;
-        return false;
-    }
-
-    if (!daemonController_.connect()) {
-        std::cerr << "[Relay] Failed to connect to Daemon service" << std::endl;
-        return false;
-    }
+    std::cout << "[Relay] Will connect to service/daemon in background..." << std::endl;
+    downloadClient_.connectAsync();
+    daemonController_.connectAsync();
 
     daemonController_.subscribeToProgress(
         [this](uint32_t vid, uint32_t progress, const std::string& state, const std::string& msg) {
@@ -224,20 +227,27 @@ bool OtaRelay::handleCommand(uint32_t commandCode, uint32_t versionId,
             return true;
 
         case relay::CANCEL:
-            if (currentState_ == relay::RelayState::INSTALLING) {
-                std::string daemonMsg;
-                if (daemonController_.cancelInstall(daemonMsg)) {
-                    setState(relay::RelayState::IDLE, pendingVersionId_, "Install cancelled");
-                    outMessage = "Install cancelled";
-                    return true;
+            {
+                relay::RelayState current;
+                {
+                    std::lock_guard<std::mutex> lock(stateMutex_);
+                    current = currentState_;
                 }
-                outMessage = "Cancel failed: " + daemonMsg;
-                return false;
+                if (current == relay::RelayState::INSTALLING) {
+                    std::string daemonMsg;
+                    if (daemonController_.cancelInstall(daemonMsg)) {
+                        setState(relay::RelayState::IDLE, pendingVersionId_, "Install cancelled");
+                        outMessage = "Install cancelled";
+                        return true;
+                    }
+                    outMessage = "Cancel failed: " + daemonMsg;
+                    return false;
+                }
+                hasScheduledUpdate_ = false;
+                setState(relay::RelayState::IDLE, 0, "Operation cancelled");
+                outMessage = "Cancelled";
+                return true;
             }
-            hasScheduledUpdate_ = false;
-            setState(relay::RelayState::IDLE, 0, "Operation cancelled");
-            outMessage = "Cancelled";
-            return true;
 
         case relay::GET_STATUS:
             {
@@ -253,6 +263,22 @@ bool OtaRelay::handleCommand(uint32_t commandCode, uint32_t versionId,
                 return true;
             }
             outMessage = "Nothing to install (no file ready)";
+            return false;
+
+        case relay::SEND_TO_DAEMON:
+            if (sendToDaemon()) {
+                outMessage = "File sent to daemon";
+                return true;
+            }
+            outMessage = "Failed to send file to daemon";
+            return false;
+
+        case relay::DAEMON_INSTALL:
+            if (daemonInstall()) {
+                outMessage = "Install triggered on daemon";
+                return true;
+            }
+            outMessage = "Failed to trigger install on daemon";
             return false;
 
         default:
@@ -286,7 +312,13 @@ bool OtaRelay::doDownload(uint32_t versionId) {
         int64_t size = 0;
         std::string md5;
         bool comp = false;
-        if (!downloadClient_.checkForUpdate(svid, size, md5, comp)) {
+
+        for (int retry = 0; retry < 10; ++retry) {
+            if (downloadClient_.checkForUpdate(svid, size, md5, comp)) break;
+            std::cerr << "[Relay] Service not available, retrying... (" << (retry + 1) << "/10)" << std::endl;
+            std::this_thread::sleep_for(2s);
+        }
+        if (svid == 0) {
             std::cerr << "[Relay] No update available from service" << std::endl;
             return false;
         }
@@ -301,9 +333,12 @@ bool OtaRelay::doDownload(uint32_t versionId) {
     bool downloaded = downloadClient_.downloadUpdate(
         versionId, config_.downloadPath,
         [this, versionId](uint32_t vid, uint32_t pct, const std::string& status) {
-            setState(relay::RelayState::DOWNLOADING, vid, "Downloading... " + std::to_string(pct) + "%", pct);
+            (void)vid;
+            (void)status;
+            setState(relay::RelayState::DOWNLOADING, versionId, "Downloading... " + std::to_string(pct) + "%", pct);
         },
         [this, versionId](bool success, const std::string& filePath, const std::string& message) {
+            (void)message;
             if (success) {
                 pendingVersionId_ = versionId;
                 pendingFilePath_ = filePath;
@@ -341,6 +376,36 @@ bool OtaRelay::doInstall() {
     return triggerDaemonInstall(pendingVersionId_);
 }
 
+bool OtaRelay::sendToDaemon() {
+    if (pendingFilePath_.empty()) {
+        std::cerr << "[Relay] No file to send to daemon" << std::endl;
+        return false;
+    }
+    if (!triggerDaemonInstall(pendingVersionId_)) {
+        return false;
+    }
+    setState(relay::RelayState::IDLE, pendingVersionId_, "File sent to daemon, waiting for install command");
+    return true;
+}
+
+bool OtaRelay::daemonInstall() {
+    relay::RelayState current;
+    {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        current = currentState_;
+    }
+    std::string msg;
+    if (!daemonController_.triggerInstall(msg)) {
+        std::cerr << "[Relay] Failed to trigger install on daemon: " << msg << std::endl;
+        return false;
+    }
+    {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        setState(relay::RelayState::INSTALLING, currentVersionId_, "Daemon installing...");
+    }
+    return true;
+}
+
 bool OtaRelay::doUpdateScheduled(uint32_t versionId, uint32_t delaySec) {
     relay::RelayState current;
     {
@@ -369,9 +434,21 @@ bool OtaRelay::triggerDaemonInstall(uint32_t versionId) {
     setState(relay::RelayState::INSTALLING, versionId, "Sending file to daemon");
 
     if (!daemonController_.isAvailable()) {
-        std::cerr << "[Relay] Daemon proxy is not available!" << std::endl;
-        setState(relay::RelayState::ERROR, versionId, "Daemon not reachable");
-        return false;
+        std::cout << "[Relay] Daemon not available, waiting..." << std::endl;
+        bool becameAvailable = false;
+        for (int retry = 0; retry < 15; ++retry) {
+            std::this_thread::sleep_for(2s);
+            if (daemonController_.isAvailable()) {
+                becameAvailable = true;
+                break;
+            }
+            std::cout << "[Relay] Waiting for daemon... (" << (retry + 1) << "/15)" << std::endl;
+        }
+        if (!becameAvailable) {
+            std::cerr << "[Relay] Daemon proxy is not available!" << std::endl;
+            setState(relay::RelayState::ERROR, versionId, "Daemon not reachable");
+            return false;
+        }
     }
 
     if (!std::filesystem::exists(pendingFilePath_)) {
@@ -463,6 +540,7 @@ void OtaRelay::checkAndDownloadUpdates() {
     bool downloaded = downloadClient_.downloadUpdate(
         versionId, config_.downloadPath,
         [this, versionId](uint32_t vid, uint32_t pct, const std::string& status) {
+            (void)status;
             if (vid == versionId) {
                 setState(relay::RelayState::DOWNLOADING, vid,
                          "Downloading... " + std::to_string(pct) + "%", pct);
@@ -502,9 +580,14 @@ void OtaRelay::run() {
     running_ = true;
     std::cout << "[Relay] Relay started. Waiting for commands..." << std::endl;
 
-    while (running_) {
+    unsigned int loopCount = 0;
+    while (running_ && g_running) {
         try {
             processScheduledCommands();
+
+            if (++loopCount % 10 == 0) {
+                checkAndDownloadUpdates();
+            }
         } catch (const std::exception& e) {
             std::cerr << "[Relay] Error in main loop: " << e.what() << std::endl;
         }
@@ -521,6 +604,9 @@ int main(int argc, char** argv) {
         std::cerr << "Example: " << argv[0] << " relay_config.json" << std::endl;
         return 1;
     }
+
+    std::signal(SIGINT, signalHandler);
+    std::signal(SIGTERM, signalHandler);
 
     RelayConfig config;
     OtaRelay relay(config);
@@ -541,3 +627,4 @@ int main(int argc, char** argv) {
     relay.run();
     return 0;
 }
+

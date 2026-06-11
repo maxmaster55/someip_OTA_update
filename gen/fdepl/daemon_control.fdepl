@@ -4,13 +4,23 @@ import "../fidl/daemon_control.fidl"
 define org.genivi.commonapi.someip.deployment for interface manager.updater.DaemonControl {
     SomeIpServiceID = 6944
 
-    method performInstall {
+    method beginInstall {
         SomeIpMethodID = 1
         SomeIpReliable = false
     }
 
-    method cancelInstall {
+    method sendChunk {
         SomeIpMethodID = 2
+        SomeIpReliable = false
+    }
+
+    method finishInstall {
+        SomeIpMethodID = 3
+        SomeIpReliable = false
+    }
+
+    method cancelInstall {
+        SomeIpMethodID = 4
         SomeIpReliable = false
     }
 

@@ -95,18 +95,24 @@ class DaemonControlStub
     : public virtual CommonAPI::Stub<DaemonControlStubAdapter, DaemonControlStubRemoteEvent>
 {
 public:
-    typedef std::function<void (bool _accepted, std::string _message)> performInstallReply_t;
+    typedef std::function<void (bool _accepted, std::string _message)> beginInstallReply_t;
+    typedef std::function<void (bool _accepted)> sendChunkReply_t;
+    typedef std::function<void (bool _accepted, std::string _message)> finishInstallReply_t;
     typedef std::function<void (bool _accepted)> cancelInstallReply_t;
 
     virtual ~DaemonControlStub() {}
     void lockInterfaceVersionAttribute(bool _lockAccess) { static_cast<void>(_lockAccess); }
     bool hasElement(const uint32_t _id) const {
-        return (_id < 3);
+        return (_id < 5);
     }
     virtual const CommonAPI::Version& getInterfaceVersion(std::shared_ptr<CommonAPI::ClientId> _client) = 0;
 
-    /// This is the method that will be called on remote calls on the method performInstall.
-    virtual void performInstall(const std::shared_ptr<CommonAPI::ClientId> _client, std::string _firmwarePath, uint32_t _versionId, performInstallReply_t _reply) = 0;
+    /// This is the method that will be called on remote calls on the method beginInstall.
+    virtual void beginInstall(const std::shared_ptr<CommonAPI::ClientId> _client, uint32_t _versionId, uint64_t _fileSize, std::string _md5Hash, bool _isCompressed, beginInstallReply_t _reply) = 0;
+    /// This is the method that will be called on remote calls on the method sendChunk.
+    virtual void sendChunk(const std::shared_ptr<CommonAPI::ClientId> _client, uint32_t _versionId, uint32_t _chunkIndex, std::string _data, sendChunkReply_t _reply) = 0;
+    /// This is the method that will be called on remote calls on the method finishInstall.
+    virtual void finishInstall(const std::shared_ptr<CommonAPI::ClientId> _client, uint32_t _versionId, finishInstallReply_t _reply) = 0;
     /// This is the method that will be called on remote calls on the method cancelInstall.
     virtual void cancelInstall(const std::shared_ptr<CommonAPI::ClientId> _client, cancelInstallReply_t _reply) = 0;
     /// Sends a broadcast event for installProgress.

@@ -232,6 +232,14 @@ void DownloadManager::connectToRelay() {
     }
 }
 
+void DownloadManager::disconnectFromRelay() {
+    relayProxy_.reset();
+    setRelayConnected(false);
+    setRelayState("Not connected");
+    setRelayOutput("Disconnected");
+    setRelayProgress(0.0);
+}
+
 void DownloadManager::sendRelayCommand(int commandCode, int parameter) {
     if (!relayProxy_ || !relayProxy_->isAvailable()) {
         setRelayOutput("Relay not connected");

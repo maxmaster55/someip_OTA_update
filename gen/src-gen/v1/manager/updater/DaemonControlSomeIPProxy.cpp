@@ -60,20 +60,30 @@ DaemonControlSomeIPProxy::InstallProgressEvent& DaemonControlSomeIPProxy::getIns
     return installProgress_;
 }
 
-void DaemonControlSomeIPProxy::performInstall(std::string _firmwarePath, uint32_t _versionId, CommonAPI::CallStatus &_internalCallStatus, bool &_accepted, std::string &_message, const CommonAPI::CallInfo *_info) {
-    CommonAPI::Deployable< std::string, CommonAPI::SomeIP::StringDeployment> deploy_firmwarePath(_firmwarePath, static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr));
+void DaemonControlSomeIPProxy::beginInstall(uint32_t _versionId, uint64_t _fileSize, std::string _md5Hash, bool _isCompressed, CommonAPI::CallStatus &_internalCallStatus, bool &_accepted, std::string &_message, const CommonAPI::CallInfo *_info) {
     CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t>> deploy_versionId(_versionId, static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr));
+    CommonAPI::Deployable< uint64_t, CommonAPI::SomeIP::IntegerDeployment<uint64_t>> deploy_fileSize(_fileSize, static_cast< CommonAPI::SomeIP::IntegerDeployment<uint64_t>* >(nullptr));
+    CommonAPI::Deployable< std::string, CommonAPI::SomeIP::StringDeployment> deploy_md5Hash(_md5Hash, static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr));
+    CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment> deploy_isCompressed(_isCompressed, static_cast< CommonAPI::EmptyDeployment* >(nullptr));
     CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment> deploy_accepted(static_cast< CommonAPI::EmptyDeployment* >(nullptr));
     CommonAPI::Deployable< std::string, CommonAPI::SomeIP::StringDeployment> deploy_message(static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr));
     CommonAPI::SomeIP::ProxyHelper<
         CommonAPI::SomeIP::SerializableArguments<
             CommonAPI::Deployable<
+                uint32_t,
+                CommonAPI::SomeIP::IntegerDeployment<uint32_t>
+            >,
+            CommonAPI::Deployable<
+                uint64_t,
+                CommonAPI::SomeIP::IntegerDeployment<uint64_t>
+            >,
+            CommonAPI::Deployable<
                 std::string,
                 CommonAPI::SomeIP::StringDeployment
             >,
             CommonAPI::Deployable<
-                uint32_t,
-                CommonAPI::SomeIP::IntegerDeployment<uint32_t>
+                bool,
+                CommonAPI::EmptyDeployment
             >
         >,
         CommonAPI::SomeIP::SerializableArguments<
@@ -92,27 +102,37 @@ void DaemonControlSomeIPProxy::performInstall(std::string _firmwarePath, uint32_
         false,
         false,
         (_info ? _info : &CommonAPI::SomeIP::defaultCallInfo),
-        deploy_firmwarePath, deploy_versionId,
+        deploy_versionId, deploy_fileSize, deploy_md5Hash, deploy_isCompressed,
         _internalCallStatus,
         deploy_accepted, deploy_message);
     _accepted = deploy_accepted.getValue();
     _message = deploy_message.getValue();
 }
 
-std::future<CommonAPI::CallStatus> DaemonControlSomeIPProxy::performInstallAsync(const std::string &_firmwarePath, const uint32_t &_versionId, PerformInstallAsyncCallback _callback, const CommonAPI::CallInfo *_info) {
-    CommonAPI::Deployable< std::string, CommonAPI::SomeIP::StringDeployment> deploy_firmwarePath(_firmwarePath, static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr));
+std::future<CommonAPI::CallStatus> DaemonControlSomeIPProxy::beginInstallAsync(const uint32_t &_versionId, const uint64_t &_fileSize, const std::string &_md5Hash, const bool &_isCompressed, BeginInstallAsyncCallback _callback, const CommonAPI::CallInfo *_info) {
     CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t>> deploy_versionId(_versionId, static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr));
+    CommonAPI::Deployable< uint64_t, CommonAPI::SomeIP::IntegerDeployment<uint64_t>> deploy_fileSize(_fileSize, static_cast< CommonAPI::SomeIP::IntegerDeployment<uint64_t>* >(nullptr));
+    CommonAPI::Deployable< std::string, CommonAPI::SomeIP::StringDeployment> deploy_md5Hash(_md5Hash, static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr));
+    CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment> deploy_isCompressed(_isCompressed, static_cast< CommonAPI::EmptyDeployment* >(nullptr));
     CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment> deploy_accepted(static_cast< CommonAPI::EmptyDeployment* >(nullptr));
     CommonAPI::Deployable< std::string, CommonAPI::SomeIP::StringDeployment> deploy_message(static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr));
     return CommonAPI::SomeIP::ProxyHelper<
         CommonAPI::SomeIP::SerializableArguments<
             CommonAPI::Deployable<
+                uint32_t,
+                CommonAPI::SomeIP::IntegerDeployment<uint32_t>
+            >,
+            CommonAPI::Deployable<
+                uint64_t,
+                CommonAPI::SomeIP::IntegerDeployment<uint64_t>
+            >,
+            CommonAPI::Deployable<
                 std::string,
                 CommonAPI::SomeIP::StringDeployment
             >,
             CommonAPI::Deployable<
-                uint32_t,
-                CommonAPI::SomeIP::IntegerDeployment<uint32_t>
+                bool,
+                CommonAPI::EmptyDeployment
             >
         >,
         CommonAPI::SomeIP::SerializableArguments<
@@ -131,7 +151,154 @@ std::future<CommonAPI::CallStatus> DaemonControlSomeIPProxy::performInstallAsync
         false,
         false,
         (_info ? _info : &CommonAPI::SomeIP::defaultCallInfo),
-        deploy_firmwarePath, deploy_versionId,
+        deploy_versionId, deploy_fileSize, deploy_md5Hash, deploy_isCompressed,
+        [_callback] (CommonAPI::CallStatus _internalCallStatus, CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment > _accepted, CommonAPI::Deployable< std::string, CommonAPI::SomeIP::StringDeployment > _message) {
+            if (_callback)
+                _callback(_internalCallStatus, _accepted.getValue(), _message.getValue());
+        },
+        std::make_tuple(deploy_accepted, deploy_message));
+}
+
+void DaemonControlSomeIPProxy::sendChunk(uint32_t _versionId, uint32_t _chunkIndex, std::string _data, CommonAPI::CallStatus &_internalCallStatus, bool &_accepted, const CommonAPI::CallInfo *_info) {
+    CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t>> deploy_versionId(_versionId, static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr));
+    CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t>> deploy_chunkIndex(_chunkIndex, static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr));
+    CommonAPI::Deployable< std::string, CommonAPI::SomeIP::StringDeployment> deploy_data(_data, static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr));
+    CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment> deploy_accepted(static_cast< CommonAPI::EmptyDeployment* >(nullptr));
+    CommonAPI::SomeIP::ProxyHelper<
+        CommonAPI::SomeIP::SerializableArguments<
+            CommonAPI::Deployable<
+                uint32_t,
+                CommonAPI::SomeIP::IntegerDeployment<uint32_t>
+            >,
+            CommonAPI::Deployable<
+                uint32_t,
+                CommonAPI::SomeIP::IntegerDeployment<uint32_t>
+            >,
+            CommonAPI::Deployable<
+                std::string,
+                CommonAPI::SomeIP::StringDeployment
+            >
+        >,
+        CommonAPI::SomeIP::SerializableArguments<
+            CommonAPI::Deployable<
+                bool,
+                CommonAPI::EmptyDeployment
+            >
+        >
+    >::callMethodWithReply(
+        *this,
+        CommonAPI::SomeIP::method_id_t(0x2),
+        false,
+        false,
+        (_info ? _info : &CommonAPI::SomeIP::defaultCallInfo),
+        deploy_versionId, deploy_chunkIndex, deploy_data,
+        _internalCallStatus,
+        deploy_accepted);
+    _accepted = deploy_accepted.getValue();
+}
+
+std::future<CommonAPI::CallStatus> DaemonControlSomeIPProxy::sendChunkAsync(const uint32_t &_versionId, const uint32_t &_chunkIndex, const std::string &_data, SendChunkAsyncCallback _callback, const CommonAPI::CallInfo *_info) {
+    CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t>> deploy_versionId(_versionId, static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr));
+    CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t>> deploy_chunkIndex(_chunkIndex, static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr));
+    CommonAPI::Deployable< std::string, CommonAPI::SomeIP::StringDeployment> deploy_data(_data, static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr));
+    CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment> deploy_accepted(static_cast< CommonAPI::EmptyDeployment* >(nullptr));
+    return CommonAPI::SomeIP::ProxyHelper<
+        CommonAPI::SomeIP::SerializableArguments<
+            CommonAPI::Deployable<
+                uint32_t,
+                CommonAPI::SomeIP::IntegerDeployment<uint32_t>
+            >,
+            CommonAPI::Deployable<
+                uint32_t,
+                CommonAPI::SomeIP::IntegerDeployment<uint32_t>
+            >,
+            CommonAPI::Deployable<
+                std::string,
+                CommonAPI::SomeIP::StringDeployment
+            >
+        >,
+        CommonAPI::SomeIP::SerializableArguments<
+            CommonAPI::Deployable<
+                bool,
+                CommonAPI::EmptyDeployment
+            >
+        >
+    >::callMethodAsync(
+        *this,
+        CommonAPI::SomeIP::method_id_t(0x2),
+        false,
+        false,
+        (_info ? _info : &CommonAPI::SomeIP::defaultCallInfo),
+        deploy_versionId, deploy_chunkIndex, deploy_data,
+        [_callback] (CommonAPI::CallStatus _internalCallStatus, CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment > _accepted) {
+            if (_callback)
+                _callback(_internalCallStatus, _accepted.getValue());
+        },
+        std::make_tuple(deploy_accepted));
+}
+
+void DaemonControlSomeIPProxy::finishInstall(uint32_t _versionId, CommonAPI::CallStatus &_internalCallStatus, bool &_accepted, std::string &_message, const CommonAPI::CallInfo *_info) {
+    CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t>> deploy_versionId(_versionId, static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr));
+    CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment> deploy_accepted(static_cast< CommonAPI::EmptyDeployment* >(nullptr));
+    CommonAPI::Deployable< std::string, CommonAPI::SomeIP::StringDeployment> deploy_message(static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr));
+    CommonAPI::SomeIP::ProxyHelper<
+        CommonAPI::SomeIP::SerializableArguments<
+            CommonAPI::Deployable<
+                uint32_t,
+                CommonAPI::SomeIP::IntegerDeployment<uint32_t>
+            >
+        >,
+        CommonAPI::SomeIP::SerializableArguments<
+            CommonAPI::Deployable<
+                bool,
+                CommonAPI::EmptyDeployment
+            >,
+            CommonAPI::Deployable<
+                std::string,
+                CommonAPI::SomeIP::StringDeployment
+            >
+        >
+    >::callMethodWithReply(
+        *this,
+        CommonAPI::SomeIP::method_id_t(0x3),
+        false,
+        false,
+        (_info ? _info : &CommonAPI::SomeIP::defaultCallInfo),
+        deploy_versionId,
+        _internalCallStatus,
+        deploy_accepted, deploy_message);
+    _accepted = deploy_accepted.getValue();
+    _message = deploy_message.getValue();
+}
+
+std::future<CommonAPI::CallStatus> DaemonControlSomeIPProxy::finishInstallAsync(const uint32_t &_versionId, FinishInstallAsyncCallback _callback, const CommonAPI::CallInfo *_info) {
+    CommonAPI::Deployable< uint32_t, CommonAPI::SomeIP::IntegerDeployment<uint32_t>> deploy_versionId(_versionId, static_cast< CommonAPI::SomeIP::IntegerDeployment<uint32_t>* >(nullptr));
+    CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment> deploy_accepted(static_cast< CommonAPI::EmptyDeployment* >(nullptr));
+    CommonAPI::Deployable< std::string, CommonAPI::SomeIP::StringDeployment> deploy_message(static_cast< CommonAPI::SomeIP::StringDeployment* >(nullptr));
+    return CommonAPI::SomeIP::ProxyHelper<
+        CommonAPI::SomeIP::SerializableArguments<
+            CommonAPI::Deployable<
+                uint32_t,
+                CommonAPI::SomeIP::IntegerDeployment<uint32_t>
+            >
+        >,
+        CommonAPI::SomeIP::SerializableArguments<
+            CommonAPI::Deployable<
+                bool,
+                CommonAPI::EmptyDeployment
+            >,
+            CommonAPI::Deployable<
+                std::string,
+                CommonAPI::SomeIP::StringDeployment
+            >
+        >
+    >::callMethodAsync(
+        *this,
+        CommonAPI::SomeIP::method_id_t(0x3),
+        false,
+        false,
+        (_info ? _info : &CommonAPI::SomeIP::defaultCallInfo),
+        deploy_versionId,
         [_callback] (CommonAPI::CallStatus _internalCallStatus, CommonAPI::Deployable< bool, CommonAPI::EmptyDeployment > _accepted, CommonAPI::Deployable< std::string, CommonAPI::SomeIP::StringDeployment > _message) {
             if (_callback)
                 _callback(_internalCallStatus, _accepted.getValue(), _message.getValue());
@@ -152,7 +319,7 @@ void DaemonControlSomeIPProxy::cancelInstall(CommonAPI::CallStatus &_internalCal
         >
     >::callMethodWithReply(
         *this,
-        CommonAPI::SomeIP::method_id_t(0x2),
+        CommonAPI::SomeIP::method_id_t(0x4),
         false,
         false,
         (_info ? _info : &CommonAPI::SomeIP::defaultCallInfo),
@@ -174,7 +341,7 @@ std::future<CommonAPI::CallStatus> DaemonControlSomeIPProxy::cancelInstallAsync(
         >
     >::callMethodAsync(
         *this,
-        CommonAPI::SomeIP::method_id_t(0x2),
+        CommonAPI::SomeIP::method_id_t(0x4),
         false,
         false,
         (_info ? _info : &CommonAPI::SomeIP::defaultCallInfo),

@@ -196,7 +196,7 @@ ApplicationWindow {
             }
 
             // ════════════════════════════════════════════════════
-            // Section: Update Pipeline - single unified flow
+            // Section: Update Pipeline
             // ════════════════════════════════════════════════════
             GroupBox {
                 Layout.fillWidth: true
@@ -205,7 +205,7 @@ ApplicationWindow {
 
                 ColumnLayout {
                     anchors.fill: parent
-                    spacing: 10
+                    spacing: 8
 
                     // Connection to relay
                     RowLayout {
@@ -226,10 +226,14 @@ ApplicationWindow {
                         }
                         Item { Layout.fillWidth: true }
                         Button {
-                            text: "Connect"
+                            text: manager.relayConnected ? "Disconnect" : "Connect"
                             implicitHeight: 28
-                            enabled: !manager.relayConnected
-                            onClicked: manager.connectToRelay()
+                            onClicked: {
+                                if (manager.relayConnected)
+                                    manager.disconnectFromRelay()
+                                else
+                                    manager.connectToRelay()
+                            }
                         }
                     }
 
@@ -253,11 +257,12 @@ ApplicationWindow {
                         }
                     }
 
-                    // Single progress bar
+                    // Progress bar
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 4
-                        visible: manager.relayProgress > 0 || manager.relayState.indexOf("downloading") >= 0
+                        visible: manager.relayProgress > 0
+                                 || manager.relayState.indexOf("downloading") >= 0
                                  || manager.relayState.indexOf("installing") >= 0
 
                         ProgressBar {
@@ -279,13 +284,13 @@ ApplicationWindow {
                         }
                     }
 
-                    // Action buttons
+                    // Main actions: fetch then deploy
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 8
 
                         Button {
-                            text: "\u2776 Fetch Firmware"
+                            text: "1. Fetch Firmware"
                             enabled: manager.relayConnected
                             implicitHeight: 36
                             Layout.fillWidth: true
@@ -295,16 +300,28 @@ ApplicationWindow {
                         }
 
                         Button {
-                            text: "\u2777 Deploy to Device"
-                            enabled: manager.relayConnected && manager.relayState.indexOf("ready") >= 0
+                            text: "2. Deploy to Device"
+                            enabled: manager.relayConnected
+                                     && manager.relayState.indexOf("ready") >= 0
                             implicitHeight: 36
                             Layout.fillWidth: true
                             Material.background: Material.DeepOrange
                             Material.foreground: "white"
                             onClicked: manager.installUpdate()
                         }
+
+                        Button {
+                            text: "Cancel"
+                            enabled: manager.relayConnected
+                            implicitHeight: 36
+                            Layout.fillWidth: true
+                            Material.background: Material.Red
+                            Material.foreground: "white"
+                            onClicked: manager.sendRelayCommand(3)
+                        }
                     }
 
+                    // Info buttons
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 8
@@ -318,7 +335,7 @@ ApplicationWindow {
                         }
 
                         Button {
-                            text: "Version"
+                            text: "Installed Version"
                             enabled: manager.relayConnected
                             implicitHeight: 34
                             Layout.fillWidth: true
@@ -326,13 +343,11 @@ ApplicationWindow {
                         }
 
                         Button {
-                            text: "Cancel"
+                            text: "Schedule (30s)"
                             enabled: manager.relayConnected
                             implicitHeight: 34
                             Layout.fillWidth: true
-                            Material.background: Material.Red
-                            Material.foreground: "white"
-                            onClicked: manager.sendRelayCommand(3)
+                            onClicked: manager.sendRelayCommand(1, 30)
                         }
                     }
 

@@ -15,21 +15,25 @@ public:
     ~DaemonController() = default;
 
     bool connect();
+    void connectAsync();
     bool isAvailable() const;
 
-    // Chunked file transfer: send a file to the daemon over SOME/IP
     bool sendFile(const std::string& firmwarePath, uint32_t versionId,
                   uint64_t fileSize, const std::string& md5Hash, bool isCompressed,
                   std::string& outMessage);
 
     bool cancelInstall(std::string& outMessage);
+    bool triggerInstall(std::string& outMessage);
 
     void subscribeToProgress(ProgressCallback callback);
 
 private:
+    static constexpr int MAX_CONNECT_RETRIES = 30;
+
     std::string domain_;
     std::string instance_;
     std::shared_ptr<CommonAPI::Runtime> runtime_;
     std::shared_ptr<v1::manager::updater::DaemonControlProxy<>> proxy_;
     ProgressCallback progressCallback_;
 };
+

@@ -1,0 +1,10 @@
+{
+    "downloadPath": "/tmp/ota_daemon_downloads",
+    "decompressionPath": "/tmp/ota_daemon_extracted",
+    "checkIntervalSec": 30,
+    "autoDecompress": true,
+    "autoCleanup": false,
+    "serviceDomain": "local",
+    "serviceInstance": "manager.updater.Updater"
+}
+

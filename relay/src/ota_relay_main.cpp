@@ -58,6 +58,9 @@ public:
     void run();
     void stop() { g_running = false; running_ = false; }
     bool loadConfigFromFile(const std::string& configPath);
+    void setAutoInstall(bool v) { config_.autoInstall = v; }
+    bool isAutoInstall() const { return config_.autoInstall; }
+    uint32_t getCheckInterval() const { return config_.checkIntervalSec; }
 
 private:
     RelayConfig config_;
@@ -88,6 +91,7 @@ private:
     void checkAndDownloadUpdates();
     void processScheduledCommands();
     bool doDownload(uint32_t versionId);
+    bool doAutoInstall();
     bool doUpdateScheduled(uint32_t versionId, uint32_t delaySec);
     bool doInstall();
     bool sendToDaemon();
@@ -120,6 +124,8 @@ bool OtaRelay::loadConfigFromFile(const std::string& configPath) {
             config_.checkIntervalSec = j["checkIntervalSec"].get<uint32_t>();
         if (j.contains("autoCleanup"))
             config_.autoCleanup = j["autoCleanup"].get<bool>();
+        if (j.contains("autoInstall"))
+            config_.autoInstall = j["autoInstall"].get<bool>();
         if (j.contains("serviceDomain"))
             config_.serviceDomain = j["serviceDomain"].get<std::string>();
         if (j.contains("serviceInstance"))
@@ -336,14 +342,20 @@ bool OtaRelay::doDownload(uint32_t versionId) {
         }
     } else {
         uint32_t svid = 0;
-        for (int retry = 0; retry < 3; ++retry) {
+        for (int retry = 0; retry < 10; ++retry) {
             if (downloadClient_.checkForUpdate(svid, fileSize, md5Hash, isCompressed)) break;
-            std::this_thread::sleep_for(1s);
+            std::cerr << "[Relay] Service not available for version query, retrying... (" << (retry + 1) << "/10)" << std::endl;
+            std::this_thread::sleep_for(2s);
+        }
+        if (svid == 0) {
+            std::cerr << "[Relay] Could not reach service to verify version" << std::endl;
+            return false;
         }
         if (svid != 0 && svid != versionId) {
             std::cerr << "[Relay] Requested version 0x" << std::hex << versionId
                       << " but service has version 0x" << svid << std::dec << std::endl;
         }
+        versionId = svid;
     }
 
     {
@@ -378,7 +390,30 @@ bool OtaRelay::doDownload(uint32_t versionId) {
     }
 
     setState(relay::RelayState::READY, versionId, "Download complete, ready to install", 100);
+
+    if (config_.autoInstall) {
+        doAutoInstall();
+    }
+
     return true;
+}
+
+bool OtaRelay::doAutoInstall() {
+    uint32_t ver;
+    std::string filePath;
+    {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        ver = pendingVersionId_;
+        filePath = pendingFilePath_;
+    }
+    if (filePath.empty()) {
+        std::cerr << "[Relay] Auto-install: no file to send" << std::endl;
+        return false;
+    }
+    return sendFileToDaemon(ver, filePath,
+                            "Sending to daemon...",
+                            "Daemon installing...",
+                            true);
 }
 
 bool OtaRelay::doInstall() {
@@ -607,23 +642,24 @@ void OtaRelay::checkAndDownloadUpdates() {
         },
         [this, versionId](bool success, const std::string& filePath, const std::string& message) {
             if (success) {
-                {
-                    std::lock_guard<std::mutex> lock(stateMutex_);
-                    pendingVersionId_ = versionId;
-                    pendingFilePath_ = filePath;
-                    downloadedVersionId_ = versionId;
-                }
-                setState(relay::RelayState::READY, versionId,
-                         "Download complete. Click 'Install' to decompress.", 100);
-            } else {
-                setState(relay::RelayState::ERROR, versionId,
-                         "Download failed: " + message, 0);
+                std::lock_guard<std::mutex> lock(stateMutex_);
+                pendingVersionId_ = versionId;
+                pendingFilePath_ = filePath;
+                downloadedVersionId_ = versionId;
             }
         }
     );
 
     if (!downloaded) {
         setState(relay::RelayState::IDLE, versionId, "Download skipped or failed");
+        return;
+    }
+
+    setState(relay::RelayState::READY, versionId, "Download complete, ready to install", 100);
+
+    if (config_.autoInstall) {
+        std::cout << "[Relay] Auto-install enabled, proceeding..." << std::endl;
+        doAutoInstall();
     }
 }
 
@@ -647,9 +683,18 @@ void OtaRelay::run() {
     running_ = true;
     std::cout << "[Relay] Relay started. Waiting for commands..." << std::endl;
 
+    auto lastCheck = std::chrono::steady_clock::now();
+
     while (running_ && g_running) {
         try {
             processScheduledCommands();
+
+            auto now = std::chrono::steady_clock::now();
+            auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - lastCheck).count();
+            if (elapsed >= static_cast<std::chrono::seconds::rep>(config_.checkIntervalSec)) {
+                lastCheck = now;
+                checkAndDownloadUpdates();
+            }
         } catch (const std::exception& e) {
             std::cerr << "[Relay] Error in main loop: " << e.what() << std::endl;
         }
@@ -662,8 +707,8 @@ void OtaRelay::run() {
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <config_file.json>" << std::endl;
-        std::cerr << "Example: " << argv[0] << " relay_config.json" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <config_file.json> [--auto-install]" << std::endl;
+        std::cerr << "Example: " << argv[0] << " relay_config.json --auto-install" << std::endl;
         return 1;
     }
 
@@ -677,13 +722,25 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    for (int i = 2; i < argc; i++) {
+        if (std::string(argv[i]) == "--auto-install") {
+            relay.setAutoInstall(true);
+            std::cout << "[Relay] CLI override: auto-install enabled" << std::endl;
+        }
+    }
+
     if (!relay.init()) {
         std::cerr << "Failed to initialize relay" << std::endl;
         return 1;
     }
 
-    std::cout << "\n=== OTA Relay Running (manual mode) ===" << std::endl;
-    std::cout << "Use Download button to fetch, Install button to deploy" << std::endl;
+    std::cout << "\n=== OTA Relay Running ===" << std::endl;
+    if (relay.isAutoInstall()) {
+        std::cout << "Mode: HEADLESS (auto-install enabled)" << std::endl;
+    } else {
+        std::cout << "Mode: MANUAL (send commands via GUI)" << std::endl;
+    }
+    std::cout << "Relay will auto-check for updates every " << relay.getCheckInterval() << "s" << std::endl;
     std::cout << "==========================================\n" << std::endl;
 
     relay.run();

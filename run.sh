@@ -94,6 +94,41 @@ case "$MODE" in
             ./build/gui/ota_gui
         ;;
 
+    headless)
+        trap cleanup EXIT INT TERM
+        echo "=== Starting OTA Headless (auto-install) ==="
+        echo ""
+
+        echo "[1/4] Starting Relay with auto-install..."
+        VSOMEIP_CONFIGURATION=./relay/config/relay.json \
+            ./build/relay/ota_relay ./relay/config/example_relay_config.json --auto-install &
+        RELAY_PID=$!
+        sleep 2
+
+        echo "[2/4] Starting Daemon..."
+        VSOMEIP_CONFIGURATION=./daemon/config/daemon.json \
+            ./build/daemon/ota_daemon ./daemon/config/example_daemon_config.json &
+        DAEMON_PID=$!
+        sleep 1
+
+        echo "[3/4] Starting Service (triggers download)..."
+        VSOMEIP_CONFIGURATION=./service/config/service.json \
+            ./build/service/ota_service "$UPDATE_FILE" &
+        SERVICE_PID=$!
+        sleep 2
+
+        echo ""
+        echo "=== Headless OTA running ==="
+        echo "  Relay   PID=$RELAY_PID  (auto-install)"
+        echo "  Daemon  PID=$DAEMON_PID"
+        echo "  Service PID=$SERVICE_PID"
+        echo ""
+        echo "Press Ctrl+C to stop all"
+        echo ""
+
+        wait
+        ;;
+
     cleanup)
         cleanup
         ;;
@@ -102,17 +137,19 @@ case "$MODE" in
         echo "Usage: $0 [update_file] [mode]"
         echo ""
         echo "Modes:"
-        echo "  all     - Start all 4 components (default)"
-        echo "  relay   - Start relay only"
-        echo "  daemon  - Start daemon only"
-        echo "  service - Start service only"
-        echo "  gui     - Start GUI only"
-        echo "  cleanup - Kill all OTA processes"
+        echo "  all      - Start all 4 components (default)"
+        echo "  headless - Relay + Daemon + Service (no GUI, auto-install)"
+        echo "  relay    - Start relay only"
+        echo "  daemon   - Start daemon only"
+        echo "  service  - Start service only"
+        echo "  gui      - Start GUI only"
+        echo "  cleanup  - Kill all OTA processes"
         echo ""
         echo "Examples:"
-        echo "  $0                                    # Default mode (all)"
-        echo "  $0 my_firmware.bin                    # Custom file, all components"
-        echo "  $0 my_firmware.bin relay              # Custom file, relay only"
-        echo "  $0 '' cleanup                         # Kill all processes"
+        echo "  $0                                              # Default mode (all)"
+        echo "  $0 my_firmware.bin headless                     # Custom file, headless"
+        echo "  $0 my_firmware.bin                              # Custom file, all components"
+        echo "  $0 my_firmware.bin relay                        # Custom file, relay only"
+        echo "  $0 '' cleanup                                   # Kill all processes"
         ;;
 esac

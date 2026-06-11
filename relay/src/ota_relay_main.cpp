@@ -369,19 +369,16 @@ bool OtaRelay::doDownload(uint32_t versionId) {
 }
 
 bool OtaRelay::doInstall() {
-    relay::RelayState current;
     uint32_t ver;
     std::string filePath;
     {
         std::lock_guard<std::mutex> lock(stateMutex_);
-        current = currentState_;
+        if (currentState_ != relay::RelayState::READY) {
+            std::cerr << "[Relay] No downloaded file ready to install" << std::endl;
+            return false;
+        }
         ver = pendingVersionId_;
         filePath = pendingFilePath_;
-    }
-
-    if (current != relay::RelayState::READY) {
-        std::cerr << "[Relay] No downloaded file ready to install" << std::endl;
-        return false;
     }
 
     if (filePath.empty()) {
@@ -389,10 +386,39 @@ bool OtaRelay::doInstall() {
         return false;
     }
 
-    if (!triggerDaemonInstall(ver)) {
+    // Async send on background thread
+    if (!std::filesystem::exists(filePath)) {
+        setState(relay::RelayState::ERROR, ver, "File not found");
         return false;
     }
-    setState(relay::RelayState::IDLE, ver, "File sent to daemon, use DAEMON_INSTALL to install");
+    uint64_t fileSize = std::filesystem::file_size(filePath);
+    std::string md5Hash = computeFileMd5(filePath);
+    bool isCompressed = (filePath.find(".bz2") != std::string::npos ||
+                         filePath.find(".gz") != std::string::npos);
+
+    setState(relay::RelayState::INSTALLING, ver, "Sending file to daemon...");
+
+    std::thread([this, ver, filePath, fileSize, md5Hash, isCompressed]() {
+        if (!daemonController_.isAvailable()) {
+            for (int retry = 0; retry < 15; ++retry) {
+                std::this_thread::sleep_for(2s);
+                if (daemonController_.isAvailable()) break;
+                std::cout << "[Relay] Waiting for daemon... (" << (retry + 1) << "/15)" << std::endl;
+            }
+            if (!daemonController_.isAvailable()) {
+                setState(relay::RelayState::ERROR, ver, "Daemon not reachable");
+                return;
+            }
+        }
+
+        std::string daemonMsg;
+        if (!daemonController_.sendFile(filePath, ver, fileSize, md5Hash, isCompressed, daemonMsg)) {
+            setState(relay::RelayState::ERROR, ver, "Daemon install failed: " + daemonMsg);
+            return;
+        }
+        setState(relay::RelayState::IDLE, ver, "File sent to daemon, use DAEMON_INSTALL to install");
+    }).detach();
+
     return true;
 }
 
@@ -408,10 +434,40 @@ bool OtaRelay::sendToDaemon() {
         std::cerr << "[Relay] No file to send to daemon" << std::endl;
         return false;
     }
-    if (!triggerDaemonInstall(ver)) {
+
+    // Async send on background thread
+    if (!std::filesystem::exists(filePath)) {
+        setState(relay::RelayState::ERROR, ver, "File not found");
         return false;
     }
-    setState(relay::RelayState::IDLE, ver, "File sent to daemon, waiting for install command");
+    uint64_t fileSize = std::filesystem::file_size(filePath);
+    std::string md5Hash = computeFileMd5(filePath);
+    bool isCompressed = (filePath.find(".bz2") != std::string::npos ||
+                         filePath.find(".gz") != std::string::npos);
+
+    setState(relay::RelayState::INSTALLING, ver, "Sending file to daemon...");
+
+    std::thread([this, ver, filePath, fileSize, md5Hash, isCompressed]() {
+        if (!daemonController_.isAvailable()) {
+            for (int retry = 0; retry < 15; ++retry) {
+                std::this_thread::sleep_for(2s);
+                if (daemonController_.isAvailable()) break;
+                std::cout << "[Relay] Waiting for daemon... (" << (retry + 1) << "/15)" << std::endl;
+            }
+            if (!daemonController_.isAvailable()) {
+                setState(relay::RelayState::ERROR, ver, "Daemon not reachable");
+                return;
+            }
+        }
+
+        std::string daemonMsg;
+        if (!daemonController_.sendFile(filePath, ver, fileSize, md5Hash, isCompressed, daemonMsg)) {
+            setState(relay::RelayState::ERROR, ver, "Send to daemon failed: " + daemonMsg);
+            return;
+        }
+        setState(relay::RelayState::IDLE, ver, "File sent to daemon, waiting for install command");
+    }).detach();
+
     return true;
 }
 
@@ -626,14 +682,9 @@ void OtaRelay::run() {
     running_ = true;
     std::cout << "[Relay] Relay started. Waiting for commands..." << std::endl;
 
-    unsigned int loopCount = 0;
     while (running_ && g_running) {
         try {
             processScheduledCommands();
-
-            if (++loopCount % 10 == 0) {
-                checkAndDownloadUpdates();
-            }
         } catch (const std::exception& e) {
             std::cerr << "[Relay] Error in main loop: " << e.what() << std::endl;
         }

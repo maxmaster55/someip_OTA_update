@@ -84,6 +84,8 @@ bool DaemonController::sendFile(const std::string& firmwarePath, uint32_t versio
     }
 
     uint32_t chunkIndex = 0;
+    uint32_t totalChunks = (fileSize + CHUNK_SIZE - 1) / CHUNK_SIZE;
+    uint32_t nextReportPct = 1;
     std::vector<char> buf(CHUNK_SIZE);
 
     while (inFile.read(buf.data(), buf.size()) || inFile.gcount()) {
@@ -100,6 +102,12 @@ bool DaemonController::sendFile(const std::string& firmwarePath, uint32_t versio
         chunkIndex++;
         if (chunkIndex % 1000 == 0) {
             std::cout << "[DaemonController] Sent " << chunkIndex << " chunks..." << std::endl;
+        }
+
+        uint32_t pct = (totalChunks > 0) ? (chunkIndex * 100 / totalChunks) : 0;
+        if (pct >= nextReportPct && progressCallback_) {
+            progressCallback_(versionId, pct, "sending", "Sending to daemon... " + std::to_string(pct) + "%");
+            nextReportPct = pct + 1;
         }
     }
 

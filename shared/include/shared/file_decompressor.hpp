@@ -21,12 +21,27 @@ public:
         std::string& errorMsg
     );
 
+    static bool extractTar(
+        const std::string& tarPath,
+        const std::string& outputDir,
+        std::string& errorMsg
+    );
+
     static bool decompress(
         const std::string& inputPath,
         const std::string& outputDir,
         const std::string& filename,
         std::string& errorMsg
     );
+
+    static bool decompressAndExtractTar(
+        const std::string& inputPath,
+        const std::string& outputDir,
+        const std::string& filename,
+        std::string& errorMsg
+    );
+
+    static bool isTarArchive(const std::string& path);
 
 private:
     static constexpr size_t BUFFER_SIZE = 65536;

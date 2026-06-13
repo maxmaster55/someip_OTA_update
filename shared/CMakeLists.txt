@@ -10,6 +10,7 @@ find_package(OpenSSL REQUIRED)
 find_package(BZip2 REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(nlohmann_json REQUIRED)
+find_package(LibArchive REQUIRED)
 
 set(GEN_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../gen/src-gen/v1/manager/updater)
 
@@ -47,4 +48,6 @@ target_link_libraries(ota_shared PUBLIC
     BZip2::BZip2
     ZLIB::ZLIB
     nlohmann_json::nlohmann_json
+    ${LibArchive_LIBRARY}
 )
+target_include_directories(ota_shared PUBLIC ${LibArchive_INCLUDE_DIR})

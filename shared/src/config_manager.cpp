@@ -36,6 +36,10 @@ bool ClientConfig::parseJson(const json& jsonObj) {
         settings_.downloadPath = jsonObj.at("downloadPath").get<std::string>();
         settings_.decompressionPath = jsonObj.at("decompressionPath").get<std::string>();
 
+        if (jsonObj.contains("decompressionMode")) {
+            settings_.decompressionMode = jsonObj.at("decompressionMode").get<std::string>();
+        }
+
         if (jsonObj.contains("chunkSize")) {
             settings_.chunkSize = jsonObj.at("chunkSize").get<uint32_t>();
         }
@@ -65,6 +69,7 @@ bool ClientConfig::parseJson(const json& jsonObj) {
         std::cout << "  Decompression Path: " << settings_.decompressionPath << std::endl;
         std::cout << "  Chunk Size: " << settings_.chunkSize << std::endl;
         std::cout << "  Check Interval: " << settings_.checkIntervalSec << "s" << std::endl;
+        std::cout << "  Decompression Mode: " << settings_.decompressionMode << std::endl;
         std::cout << "  Auto Decompress: " << (settings_.autoDecompress ? "yes" : "no") << std::endl;
         std::cout << "  Auto Cleanup: " << (settings_.autoCleanup ? "yes" : "no") << std::endl;
 

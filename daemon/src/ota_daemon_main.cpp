@@ -13,6 +13,8 @@
 #include <shared/file_decompressor.hpp>
 #include <shared/config_manager.hpp>
 #include <openssl/md5.h>
+#include <bzlib.h>
+#include <zlib.h>
 
 using namespace std::chrono_literals;
 
@@ -24,10 +26,22 @@ static void signalHandler(int) {
 
 class DaemonControlImpl : public v1::manager::updater::DaemonControlStubDefault {
 public:
-    explicit DaemonControlImpl(const std::string& downloadDir, const std::string& outputDir)
-        : cancelled_(false), downloadDir_(downloadDir), outputDir_(outputDir) {
+    explicit DaemonControlImpl(const std::string& downloadDir, const std::string& outputDir,
+                                bool autoDecompress, bool autoCleanup,
+                                const std::string& decompressionMode)
+        : cancelled_(false), downloadDir_(downloadDir), outputDir_(outputDir),
+          autoDecompress_(autoDecompress), autoCleanup_(autoCleanup),
+          decompressionMode_(decompressionMode) {
         std::cout << "[Daemon] Created with downloadDir=" << downloadDir
-                  << ", outputDir=" << outputDir << std::endl;
+                  << ", outputDir=" << outputDir
+                  << ", mode=" << decompressionMode
+                  << ", autoDecompress=" << (autoDecompress ? "yes" : "no")
+                  << ", autoCleanup=" << (autoCleanup ? "yes" : "no") << std::endl;
+    }
+
+    ~DaemonControlImpl() override {
+        if (bz2StreamActive_) BZ2_bzDecompressEnd(&bzStream_);
+        if (gzStreamActive_) inflateEnd(&gzStream_);
     }
 
     void beginInstall(const std::shared_ptr<CommonAPI::ClientId> _client,
@@ -63,6 +77,50 @@ public:
             return;
         }
 
+        bool useStream = (decompressionMode_ == "stream" && _isCompressed);
+
+        if (useStream) {
+            std::filesystem::create_directories(outputDir_);
+            std::string path = outputDir_ + "/_stream_0x" + std::to_string(_versionId) + ".tmp";
+
+            std::cout << "[Daemon] beginInstall (stream mode): version=0x" << std::hex << _versionId
+                      << std::dec << ", size=" << _fileSize << ", md5=" << _md5Hash
+                      << ", path=" << path << std::endl;
+
+            streamOutFile_.open(path, std::ios::binary);
+            if (!streamOutFile_) {
+                std::cerr << "[Daemon] Cannot create stream output file: " << path << std::endl;
+                _reply(false, "Cannot create output file");
+                return;
+            }
+
+            memset(&bzStream_, 0, sizeof(bz_stream));
+            int bzret = BZ2_bzDecompressInit(&bzStream_, 0, 0);
+            if (bzret != BZ_OK) {
+                std::cerr << "[Daemon] Failed to init bzip2 stream" << std::endl;
+                streamOutFile_.close();
+                std::filesystem::remove(path);
+                _reply(false, "Failed to init decompressor");
+                return;
+            }
+            bz2StreamActive_ = true;
+
+            streamMode_ = true;
+            streamOutputPath_ = path;
+            pendingVersionId_ = _versionId;
+            pendingFileSize_ = _fileSize;
+            pendingMd5_ = _md5Hash;
+            pendingCompressed_ = true;
+            chunksReceived_ = 0;
+            totalBytesReceived_ = 0;
+            cancelled_ = false;
+            MD5_Init(&md5Ctx_);
+
+            std::cout << "[Daemon] Ready to receive (stream) " << _fileSize << " bytes" << std::endl;
+            _reply(true, "Ready to receive (streaming)");
+            return;
+        }
+
         std::filesystem::create_directories(downloadDir_);
         std::string path = downloadDir_ + "/incoming_0x" + std::to_string(_versionId) + ".bin";
         if (_isCompressed) path += ".bz2";
@@ -79,6 +137,7 @@ public:
             return;
         }
 
+        streamMode_ = false;
         pendingVersionId_ = _versionId;
         pendingFilePath_ = path;
         pendingFileSize_ = _fileSize;
@@ -104,8 +163,45 @@ public:
             return;
         }
 
-        outFile_.write(_data.data(), _data.size());
         MD5_Update(&md5Ctx_, _data.data(), _data.size());
+
+        if (streamMode_) {
+            totalBytesReceived_ += _data.size();
+
+            bzStream_.next_in = reinterpret_cast<char*>(_data.data());
+            bzStream_.avail_in = _data.size();
+
+            char buffer[65536];
+            bool streamEnd = false;
+            do {
+                bzStream_.next_out = buffer;
+                bzStream_.avail_out = sizeof(buffer);
+                int bzret = BZ2_bzDecompress(&bzStream_);
+                if (bzret == BZ_STREAM_END) {
+                    streamEnd = true;
+                } else if (bzret != BZ_OK) {
+                    std::cerr << "[Daemon] Bzip2 decompression error: " << bzret << std::endl;
+                    cleanup();
+                    _reply(false);
+                    return;
+                }
+                int have = sizeof(buffer) - bzStream_.avail_out;
+                if (have > 0) {
+                    streamOutFile_.write(buffer, have);
+                }
+            } while (bzStream_.avail_in > 0 && !streamEnd);
+
+            chunksReceived_++;
+            if (chunksReceived_ % 1000 == 0) {
+                std::cout << "[Daemon] Stream received " << chunksReceived_
+                          << " chunks (" << totalBytesReceived_ << " compressed bytes)"
+                          << " for version 0x" << std::hex << _versionId << std::dec << std::endl;
+            }
+            _reply(true);
+            return;
+        }
+
+        outFile_.write(_data.data(), _data.size());
         chunksReceived_++;
 
         if (chunksReceived_ % 1000 == 0) {
@@ -127,6 +223,104 @@ public:
                       << std::hex << pendingVersionId_ << ", got 0x" << _versionId
                       << std::dec << std::endl;
             _reply(false, "No pending install for this version");
+            return;
+        }
+
+        if (cancelled_) {
+            std::cout << "[Daemon] Install was cancelled, cleaning up" << std::endl;
+            cleanup();
+            _reply(false, "Install cancelled");
+            return;
+        }
+
+        if (streamMode_) {
+            if (bz2StreamActive_) {
+                BZ2_bzDecompressEnd(&bzStream_);
+                bz2StreamActive_ = false;
+            }
+            streamOutFile_.close();
+            std::cout << "[Daemon] Stream file closed: " << streamOutputPath_ << std::endl;
+
+            if (cancelled_) {
+                cleanup();
+                _reply(false, "Install cancelled");
+                return;
+            }
+
+            uint64_t actualCompressed = totalBytesReceived_;
+            std::cout << "[Daemon] Verifying size: expected=" << pendingFileSize_
+                      << ", actual=" << actualCompressed << std::endl;
+            if (actualCompressed != pendingFileSize_) {
+                std::cerr << "[Daemon] Size mismatch: expected " << pendingFileSize_
+                          << ", got " << actualCompressed << std::endl;
+                cleanup();
+                _reply(false, "File size mismatch");
+                return;
+            }
+            std::cout << "[Daemon] Size verified OK (" << actualCompressed << " bytes)" << std::endl;
+
+            if (!pendingMd5_.empty()) {
+                unsigned char digest[MD5_DIGEST_LENGTH];
+                MD5_Final(digest, &md5Ctx_);
+                char hex[33];
+                for (int i = 0; i < 16; i++)
+                    snprintf(hex + i * 2, 3, "%02x", digest[i]);
+                std::string actualMd5(hex);
+                std::cout << "[Daemon] Verifying MD5: expected=" << pendingMd5_
+                          << ", actual=" << actualMd5 << std::endl;
+                if (actualMd5 != pendingMd5_) {
+                    std::cerr << "[Daemon] MD5 mismatch: expected " << pendingMd5_
+                              << ", got " << actualMd5 << std::endl;
+                    cleanup();
+                    _reply(false, "MD5 mismatch");
+                    return;
+                }
+                std::cout << "[Daemon] MD5 verified OK: " << actualMd5 << std::endl;
+            } else {
+                std::cout << "[Daemon] No MD5 hash provided, skipping verification" << std::endl;
+            }
+
+            fireInstallProgressEvent(_versionId, 50, "extracting", "Verification passed, extracting...");
+
+            bool isTar = Decompressor::isTarArchive(streamOutputPath_);
+            if (isTar) {
+                std::string errorMsg;
+                std::cout << "[Daemon] Detected tar archive, extracting to: " << outputDir_ << std::endl;
+                bool ok = Decompressor::extractTar(streamOutputPath_, outputDir_, errorMsg);
+                std::filesystem::remove(streamOutputPath_);
+                if (!ok) {
+                    std::cerr << "[Daemon] Tar extraction failed: " << errorMsg << std::endl;
+                    fireInstallProgressEvent(_versionId, 0, "failed", "Extraction failed: " + errorMsg);
+                    cleanup();
+                    _reply(false, "Extraction failed: " + errorMsg);
+                    return;
+                }
+                std::cout << "[Daemon] Tar extraction complete -> " << outputDir_ << std::endl;
+            } else {
+                std::string finalPath = outputDir_ + "/firmware_0x" + std::to_string(_versionId) + ".bin";
+                std::error_code ec;
+                std::filesystem::rename(streamOutputPath_, finalPath, ec);
+                if (ec) {
+                    std::cerr << "[Daemon] Cannot rename temp file: " << ec.message() << std::endl;
+                    cleanup();
+                    _reply(false, "Cannot finalize output file");
+                    return;
+                }
+                std::cout << "[Daemon] Decompressed output: " << finalPath << std::endl;
+            }
+
+            std::string verStr = "0x" + std::to_string(_versionId);
+            fireInstallProgressEvent(_versionId, 100, "complete",
+                                     "Firmware version " + verStr + " installed successfully");
+            std::cout << "[Daemon] Stream install complete for version 0x" << std::hex
+                      << _versionId << std::dec << std::endl;
+
+            pendingVersionId_ = 0;
+            streamMode_ = false;
+            streamOutputPath_.clear();
+            chunksReceived_ = 0;
+            totalBytesReceived_ = 0;
+            _reply(true, "File received and extracted successfully");
             return;
         }
 
@@ -174,13 +368,35 @@ public:
             std::cout << "[Daemon] No MD5 hash provided, skipping verification" << std::endl;
         }
 
-        std::cout << "[Daemon] File verification passed, storing for later install" << std::endl;
-        storedFilePath_ = pendingFilePath_;
-        storedVersionId_ = _versionId;
-        pendingVersionId_ = 0;
-        pendingFilePath_.clear();
-        chunksReceived_ = 0;
-        _reply(true, "File received successfully");
+        if (autoDecompress_) {
+            std::cout << "[Daemon] Auto-decompress enabled, installing immediately" << std::endl;
+            std::string filePath = pendingFilePath_;
+            uint32_t verId = _versionId;
+            pendingVersionId_ = 0;
+            pendingFilePath_.clear();
+            chunksReceived_ = 0;
+
+            fireInstallProgressEvent(verId, 0, "decompressing", "Starting decompression");
+            std::thread([this, verId, filePath]() {
+                doInstall(verId, filePath);
+                if (autoCleanup_) {
+                    std::error_code ec;
+                    std::filesystem::remove(filePath, ec);
+                    if (!ec) {
+                        std::cout << "[Daemon] Cleaned up compressed file: " << filePath << std::endl;
+                    }
+                }
+            }).detach();
+            _reply(true, "File received, install started");
+        } else {
+            std::cout << "[Daemon] File verification passed, storing for later install" << std::endl;
+            storedFilePath_ = pendingFilePath_;
+            storedVersionId_ = _versionId;
+            pendingVersionId_ = 0;
+            pendingFilePath_.clear();
+            chunksReceived_ = 0;
+            _reply(true, "File received successfully");
+        }
     }
 
     void cancelInstall(const std::shared_ptr<CommonAPI::ClientId> _client,
@@ -200,6 +416,9 @@ private:
     std::atomic<bool> cancelled_;
     std::string downloadDir_;
     std::string outputDir_;
+    bool autoDecompress_ = true;
+    bool autoCleanup_ = true;
+    std::string decompressionMode_ = "post";
 
     uint32_t pendingVersionId_ = 0;
     std::string pendingFilePath_;
@@ -213,7 +432,36 @@ private:
     std::string storedFilePath_;
     uint32_t storedVersionId_ = 0;
 
+    bool streamMode_ = false;
+    std::string streamOutputPath_;
+    std::ofstream streamOutFile_;
+    uint64_t totalBytesReceived_ = 0;
+    bool bz2StreamActive_ = false;
+    bz_stream bzStream_;
+    bool gzStreamActive_ = false;
+    z_stream gzStream_;
+
     void cleanup() {
+        if (bz2StreamActive_) {
+            BZ2_bzDecompressEnd(&bzStream_);
+            bz2StreamActive_ = false;
+        }
+        if (gzStreamActive_) {
+            inflateEnd(&gzStream_);
+            gzStreamActive_ = false;
+        }
+        if (streamOutFile_.is_open()) {
+            streamOutFile_.close();
+        }
+        if (!streamOutputPath_.empty()) {
+            std::error_code ec;
+            std::filesystem::remove(streamOutputPath_, ec);
+            if (!ec) {
+                std::cout << "[Daemon] Removed stream temp file: " << streamOutputPath_ << std::endl;
+            }
+            streamOutputPath_.clear();
+        }
+
         std::string filePath = pendingFilePath_;
         if (outFile_.is_open()) {
             outFile_.close();
@@ -224,13 +472,13 @@ private:
             std::filesystem::remove(filePath, ec);
             if (!ec) {
                 std::cout << "[Daemon] Removed partial file: " << filePath << std::endl;
-            } else {
-                std::cerr << "[Daemon] Failed to remove " << filePath << ": " << ec.message() << std::endl;
             }
         }
+        streamMode_ = false;
         pendingVersionId_ = 0;
         pendingFilePath_.clear();
         chunksReceived_ = 0;
+        totalBytesReceived_ = 0;
     }
 
     void doInstall(uint32_t versionId, const std::string& firmwarePath) {
@@ -245,23 +493,14 @@ private:
             return;
         }
 
-        std::string format;
-        if (!Decompressor::detectFormat(firmwarePath, format)) {
-            std::cout << "[Daemon] File is not compressed, install complete" << std::endl;
-            fireInstallProgressEvent(versionId, 100, "complete",
-                                     "File is not compressed, install complete");
-            return;
-        }
-        std::cout << "[Daemon] Detected format: " << format << std::endl;
-
         std::filesystem::create_directories(outputDir_);
 
         std::string filename = std::filesystem::path(firmwarePath).filename().string();
-        std::cout << "[Daemon] Output filename: " << filename << std::endl;
+        std::cout << "[Daemon] Input filename: " << filename << std::endl;
         std::string errorMsg;
 
         fireInstallProgressEvent(versionId, 30, "decompressing",
-                                 "Decompressing " + format + " file...");
+                                 "Decompressing file...");
 
         if (cancelled_) {
             std::cout << "[Daemon] Install cancelled during decompression" << std::endl;
@@ -290,21 +529,10 @@ private:
 
         fireInstallProgressEvent(versionId, 80, "verifying", "Decompression complete, verifying...");
 
-        uint64_t outputSize = 0;
-        std::string decompressedPath = outputDir_ + "/" +
-            (format == "bzip2" ? filename.substr(0, filename.length() - 4) :
-             format == "gzip" ? filename.substr(0, filename.length() - 3) : filename);
-        std::error_code ec;
-        outputSize = std::filesystem::file_size(decompressedPath, ec);
-        std::cout << "[Daemon] Decompressed file size: " << outputSize
-                  << " bytes (" << (outputSize / 1'048'576.0) << " MB)" << std::endl;
-
-        std::this_thread::sleep_for(500ms);
-
         fireInstallProgressEvent(versionId, 100, "complete",
                                  "Firmware version 0x" + std::to_string(versionId) + " installed successfully");
         std::cout << "[Daemon] Installation complete for version 0x" << std::hex << versionId
-                  << std::dec << " -> " << decompressedPath << std::endl;
+                  << std::dec << std::endl;
     }
 };
 
@@ -323,6 +551,9 @@ int main(int argc, char** argv) {
 
     std::string downloadDir = config.getSettings().downloadPath;
     std::string outputDir = config.getSettings().decompressionPath;
+    bool autoDecompress = config.getSettings().autoDecompress;
+    bool autoCleanup = config.getSettings().autoCleanup;
+    std::string decompressionMode = config.getSettings().decompressionMode;
 
     auto runtime = CommonAPI::Runtime::get();
     if (!runtime) {
@@ -330,7 +561,9 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    auto service = std::make_shared<DaemonControlImpl>(downloadDir, outputDir);
+    auto service = std::make_shared<DaemonControlImpl>(downloadDir, outputDir,
+                                                        autoDecompress, autoCleanup,
+                                                        decompressionMode);
     std::string domain = "local";
     std::string instance = "manager.updater.DaemonControl";
 
@@ -343,6 +576,9 @@ int main(int argc, char** argv) {
     std::cout << "DaemonControl service registered." << std::endl;
     std::cout << "  Download dir: " << downloadDir << std::endl;
     std::cout << "  Output dir: " << outputDir << std::endl;
+    std::cout << "  Decompression mode: " << decompressionMode << std::endl;
+    std::cout << "  Auto decompress: " << (autoDecompress ? "yes" : "no") << std::endl;
+    std::cout << "  Auto cleanup: " << (autoCleanup ? "yes" : "no") << std::endl;
     std::cout << "Waiting for relay commands..." << std::endl;
 
     unsigned int heartbeat = 0;
@@ -351,11 +587,11 @@ int main(int argc, char** argv) {
         if (++heartbeat % 30 == 0) {
             std::cout << "[Daemon] Heartbeat - waiting for relay commands"
                       << " (downloadDir=" << downloadDir
-                      << ", outputDir=" << outputDir << ")" << std::endl;
+                      << ", outputDir=" << outputDir
+                      << ", mode=" << decompressionMode << ")" << std::endl;
         }
     }
 
     std::cout << "Daemon shutting down." << std::endl;
     return 0;
 }
-

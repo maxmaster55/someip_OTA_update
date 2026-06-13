@@ -10,6 +10,7 @@ public:
     struct Settings {
         std::string downloadPath;
         std::string decompressionPath;
+        std::string decompressionMode = "post";
         uint32_t chunkSize = 4096;
         uint32_t checkIntervalSec = 60;
         bool autoDecompress = true;

@@ -7,6 +7,9 @@
 #include <fstream>
 #include <vector>
 #include <cstring>
+#include <cstdlib>
+#include <cstdio>
+#include <sys/wait.h>
 #include <csignal>
 #include "CommonAPI/CommonAPI.hpp"
 #include <v1/manager/updater/DaemonControlStubDefault.hpp>
@@ -310,6 +313,7 @@ public:
             }
 
             std::string verStr = "0x" + std::to_string(_versionId);
+            switchActiveSlot();
             fireInstallProgressEvent(_versionId, 100, "complete",
                                      "Firmware version " + verStr + " installed successfully");
             std::cout << "[Daemon] Stream install complete for version 0x" << std::hex
@@ -441,6 +445,55 @@ private:
     bool gzStreamActive_ = false;
     z_stream gzStream_;
 
+    void switchActiveSlot() {
+        FILE* fp = popen("fw_printenv active_slot 2>/dev/null", "r");
+        if (!fp) {
+            std::cerr << "[Daemon] Failed to run fw_printenv" << std::endl;
+            return;
+        }
+        char buf[64] = {0};
+        if (fgets(buf, sizeof(buf), fp)) {
+            size_t len = strlen(buf);
+            while (len > 0 && (buf[len-1] == '\n' || buf[len-1] == '\r')) {
+                buf[--len] = '\0';
+            }
+        }
+        int status = pclose(fp);
+        if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+            std::cerr << "[Daemon] fw_printenv failed, exit code: "
+                      << (WIFEXITED(status) ? WEXITSTATUS(status) : -1)
+                      << ", output='" << buf << "'" << std::endl;
+            return;
+        }
+
+        std::string line(buf);
+        size_t eq = line.find('=');
+        std::string currentSlot = (eq != std::string::npos) ? line.substr(eq + 1) : line;
+        if (currentSlot.empty()) {
+            std::cerr << "[Daemon] fw_printenv returned empty value" << std::endl;
+            return;
+        }
+        std::string newSlot;
+        if (currentSlot == "a") {
+            newSlot = "b";
+        } else if (currentSlot == "b") {
+            newSlot = "a";
+        } else {
+            std::cerr << "[Daemon] Unexpected active_slot value: '" << currentSlot << "'" << std::endl;
+            return;
+        }
+
+        std::string cmd = "fw_setenv active_slot " + newSlot + " 2>/dev/null";
+        int ret = std::system(cmd.c_str());
+        if (ret == 0) {
+            std::cout << "[Daemon] Switched active_slot from '" << currentSlot
+                      << "' to '" << newSlot << "'" << std::endl;
+        } else {
+            std::cerr << "[Daemon] Failed to set active_slot to '" << newSlot
+                      << "' (ret=" << ret << ")" << std::endl;
+        }
+    }
+
     void cleanup() {
         if (bz2StreamActive_) {
             BZ2_bzDecompressEnd(&bzStream_);
@@ -529,6 +582,7 @@ private:
 
         fireInstallProgressEvent(versionId, 80, "verifying", "Decompression complete, verifying...");
 
+        switchActiveSlot();
         fireInstallProgressEvent(versionId, 100, "complete",
                                  "Firmware version 0x" + std::to_string(versionId) + " installed successfully");
         std::cout << "[Daemon] Installation complete for version 0x" << std::hex << versionId

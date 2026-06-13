@@ -1,0 +1,54 @@
+package manager.updater
+
+interface DaemonControl {
+    version { major 1 minor 0 }
+
+    method beginInstall {
+        in {
+            UInt32 versionId
+            UInt64 fileSize
+            String md5Hash
+            Boolean isCompressed
+        }
+        out {
+            Boolean accepted
+            String message
+        }
+    }
+
+    method sendChunk {
+        in {
+            UInt32 versionId
+            UInt32 chunkIndex
+            String data
+        }
+        out {
+            Boolean accepted
+        }
+    }
+
+    method finishInstall {
+        in {
+            UInt32 versionId
+        }
+        out {
+            Boolean accepted
+            String message
+        }
+    }
+
+    method cancelInstall {
+        out {
+            Boolean accepted
+        }
+    }
+
+    broadcast installProgress {
+        out {
+            UInt32 versionId
+            UInt32 progress
+            String currentState
+            String message
+        }
+    }
+}

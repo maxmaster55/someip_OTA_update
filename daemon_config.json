@@ -1,0 +1,9 @@
+{
+    "downloadPath": "/tmp/ota_daemon/dl",
+    "decompressionPath": "/tmp/ota_daemon/extract",
+    "decompressionMode": "post",
+    "chunkSize": 4096,
+    "checkIntervalSec": 60,
+    "autoDecompress": false,
+    "autoCleanup": true
+}

@@ -1,0 +1,33 @@
+package manager.updater
+
+interface RelayControl {
+    version { major 1 minor 0 }
+
+    method sendCommand {
+        in {
+            UInt32 commandCode
+            UInt32 versionId
+            UInt32 parameter
+        }
+        out {
+            Boolean accepted
+            String message
+        }
+    }
+
+    method getCurrentVersion {
+        out {
+            UInt32 versionId
+            String versionString
+        }
+    }
+
+    broadcast stateChanged {
+        out {
+            String currentState
+            UInt32 progress
+            UInt32 versionId
+            String message
+        }
+    }
+}
